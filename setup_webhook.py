@@ -24,19 +24,22 @@ async def main():
     
     # Railway автоматически задаёт RAILWAY_PUBLIC_DOMAIN
     webapp_url = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-    
+
     # Если нет - пробуем WEBAPP_URL
     if not webapp_url:
         webapp_url = os.getenv("WEBAPP_URL")
-    
+
     # Если совсем ничего - localhost
     if not webapp_url:
         webapp_url = "http://localhost:8000"
-    
+
+    # Очищаем от пробелов и переносов
+    webapp_url = webapp_url.strip()
+
     # Добавляем https если нет протокола
     if not webapp_url.startswith("http"):
         webapp_url = f"https://{webapp_url}"
-    
+
     webhook_url = f"{webapp_url}/api/telegram/webhook"
     
     print(f"[WEBHOOK] URL: {webhook_url}", flush=True)
