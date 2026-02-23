@@ -20,7 +20,7 @@ from app.db.models import Booking, BookingStatus
 
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="Filin WebApp")
+app = FastAPI(title="Filin WebApp v2")
 
 # CORS для Telegram WebApp
 app.add_middleware(
