@@ -28,7 +28,7 @@ async def run_webhook() -> None:
         await remove_webhook(bot)
         # Устанавливаем новый webhook
         await set_webhook(bot, webhook_url)
-        print(f">>> [MAIN] ✓ Webhook установлен: {webhook_url}", flush=True)
+        print(f">>> [MAIN] Webhook set successfully: {webhook_url}", flush=True)
     except Exception as e:
         print(f">>> [MAIN] ERROR setting webhook: {e}", flush=True)
     finally:
