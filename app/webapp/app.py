@@ -31,6 +31,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Тестовый endpoint
+@app.get("/test")
+async def test_endpoint():
+    return {"status": "ok", "message": "Webhook endpoint is working"}
+
+# Telegram webhook endpoint
+@app.post("/api/telegram/webhook")
+async def telegram_webhook_test(request: Request):
+    """Simple webhook test."""
+    try:
+        data = await request.json()
+        return {"ok": True, "received": data}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
