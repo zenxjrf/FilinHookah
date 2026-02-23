@@ -25,6 +25,7 @@ RUN chmod +x start.sh
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1
 ENV LOG_PATH=logs.txt
+ENV RAILWAY_DEPLOY_VERSION=2
 
-# Запускаем оба процесса через скрипт
-CMD ["./start.sh"]
+# Запускаем скрипт
+CMD ["bash", "start.sh"]
