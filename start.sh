@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Скрипт для запуска на Railway
 
+echo "=========================================="
+echo "=== FILIN HOOKAH STARTUP SCRIPT ==="
+echo "=========================================="
+echo "PORT=$PORT"
+echo "WEBAPP_URL=$WEBAPP_URL"
+echo "=========================================="
+
 # Устанавливаем переменную PORT если не задана
 export PORT=${PORT:-8000}
 echo "Starting WebApp on port $PORT..."
 
 # Сначала настраиваем webhook для бота
 echo "Setting up Telegram webhook..."
-python main.py || echo "Warning: webhook setup skipped (local mode)"
+python main.py
+echo "Webhook setup completed with exit code: $?"
 
 # Запускаем WebApp (он будет обрабатывать webhook от Telegram)
 echo "Starting WebApp server..."
