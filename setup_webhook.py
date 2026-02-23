@@ -1,6 +1,7 @@
 # Webhook setup script for Railway
 import asyncio
 import os
+import time
 
 from aiogram import Bot
 from app.config import get_settings
@@ -14,6 +15,10 @@ async def main():
     if not settings.bot_token:
         print("[WEBHOOK] ERROR: BOT_TOKEN not set", flush=True)
         return
+    
+    # Ждём пока Web App будет готов (Railway уже запустил его)
+    print("[WEBHOOK] Waiting for Web App to be ready...", flush=True)
+    await asyncio.sleep(3)
     
     bot = Bot(token=settings.bot_token)
     
@@ -40,6 +45,13 @@ async def main():
         await remove_webhook(bot)
         await set_webhook(bot, webhook_url)
         print("[WEBHOOK] SUCCESS", flush=True)
+        
+        # Проверяем что webhook установлен
+        info = await bot.get_webhook_info()
+        if info.url == webhook_url:
+            print(f"[WEBHOOK] Verified: {info.url}", flush=True)
+        else:
+            print(f"[WEBHOOK] WARNING: URL mismatch! Got {info.url}", flush=True)
     except Exception as e:
         print(f"[WEBHOOK] ERROR: {e}", flush=True)
     finally:
