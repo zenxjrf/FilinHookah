@@ -43,17 +43,31 @@ async def main():
     
     try:
         await remove_webhook(bot)
-        await set_webhook(bot, webhook_url)
-        print("[WEBHOOK] SUCCESS", flush=True)
+        print("[WEBHOOK] Removed old webhook", flush=True)
+        
+        result = await bot.set_webhook(
+            url=webhook_url,
+            allowed_updates=["message", "callback_query", "pre_checkout_query"],
+        )
+        print(f"[WEBHOOK] Telegram response: {result}", flush=True)
+        
+        if result:
+            print("[WEBHOOK] SUCCESS", flush=True)
+        else:
+            print("[WEBHOOK] FAILED - Telegram returned False", flush=True)
         
         # Проверяем что webhook установлен
+        await asyncio.sleep(2)
         info = await bot.get_webhook_info()
+        print(f"[WEBHOOK] Current webhook URL: {info.url}", flush=True)
         if info.url == webhook_url:
             print(f"[WEBHOOK] Verified: {info.url}", flush=True)
         else:
-            print(f"[WEBHOOK] WARNING: URL mismatch! Got {info.url}", flush=True)
+            print(f"[WEBHOOK] WARNING: URL mismatch! Expected {webhook_url}, got {info.url}", flush=True)
     except Exception as e:
         print(f"[WEBHOOK] ERROR: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
     finally:
         await bot.session.close()
 
