@@ -39,14 +39,14 @@ async def set_webhook(bot: Bot, webhook_url: str) -> None:
         url=webhook_url,
         allowed_updates=["message", "callback_query", "pre_checkout_query"],
     )
-    logger.info(f"Webhook установлен: {webhook_url}")
+    logger.info("Webhook set to: %s", webhook_url)
     await set_bot_commands(bot)
 
 
 async def remove_webhook(bot: Bot) -> None:
     """Удаление webhook."""
     await bot.delete_webhook()
-    logger.info("Webhook удалён")
+    logger.info("Webhook removed")
 
 
 async def run_polling() -> None:

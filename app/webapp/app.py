@@ -263,7 +263,7 @@ async def create_booking(
 
         await bot.session.close()
     except Exception as e:
-        print(f"✗ Ошибка отправки уведомления: {e}")
+        print(f"ERROR sending notification: {e}")
         # Не прерываем создание брони если уведомление не отправилось
 
     return {
