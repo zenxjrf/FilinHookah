@@ -14,8 +14,10 @@ echo "Starting WebApp on port $PORT..."
 
 # Сначала настраиваем webhook для бота
 echo "Setting up Telegram webhook..."
-python main.py
-echo "Webhook setup completed with exit code: $?"
+echo "Running: python main.py"
+python main.py 2>&1
+MAIN_EXIT=$?
+echo "main.py exited with code: $MAIN_EXIT"
 
 # Запускаем WebApp (он будет обрабатывать webhook от Telegram)
 echo "Starting WebApp server..."
