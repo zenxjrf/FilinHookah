@@ -16,7 +16,9 @@ async def main():
         return
     
     bot = Bot(token=settings.bot_token)
-    webapp_url = os.getenv("WEBAPP_URL", "http://localhost:8000")
+    
+    # Railway автоматически задаёт RAILWAY_PUBLIC_DOMAIN
+    webapp_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("WEBAPP_URL") or "http://localhost:8000"
     webhook_url = f"{webapp_url}/api/telegram/webhook"
     
     print(f"[WEBHOOK] URL: {webhook_url}", flush=True)
