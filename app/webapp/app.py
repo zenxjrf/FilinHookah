@@ -873,6 +873,7 @@ async def telegram_webhook(request: Request) -> dict:
     from aiogram.enums import ParseMode
     from aiogram.client.default import DefaultBotProperties
     from app.bot.middleware.rate_limit import RateLimitMiddleware
+    from app.db.base import session_factory
     
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -881,12 +882,12 @@ async def telegram_webhook(request: Request) -> dict:
     dp.message.middleware(RateLimitMiddleware())
     dp.callback_query.middleware(RateLimitMiddleware())
     
-    # Регистрируем все обработчики
-    dp.include_router(register_common_handlers(get_session, settings))
-    dp.include_router(register_webapp_handlers(get_session, settings))
-    dp.include_router(register_booking_actions(get_session, settings))
-    dp.include_router(register_admin_dashboard(get_session, settings))
-    dp.include_router(register_admin_handlers(get_session, settings))
+    # Регистрируем все обработчики (передаём session_factory вместо get_session)
+    dp.include_router(register_common_handlers(session_factory, settings))
+    dp.include_router(register_webapp_handlers(session_factory, settings))
+    dp.include_router(register_booking_actions(session_factory, settings))
+    dp.include_router(register_admin_dashboard(session_factory, settings))
+    dp.include_router(register_admin_handlers(session_factory, settings))
     
     try:
         update_data = await request.json()
