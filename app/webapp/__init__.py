@@ -1,0 +1,2 @@
+"""Telegram WebApp module."""
+

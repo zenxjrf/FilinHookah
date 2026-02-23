@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+filin.db
+logs.txt
+.pytest_cache/
+.idea/workspace.xml
+

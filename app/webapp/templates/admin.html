@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Админ-панель | Филин Lounge Bar</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/admin.css?v=20260222a">
+</head>
+<body>
+<header class="admin-header">
+    <h1>👨‍💼 Админ-панель</h1>
+    <button class="logout-btn" onclick="closeAdmin()">Закрыть</button>
+</header>
+
+<main class="admin-container">
+    <!-- Дашборд -->
+    <section class="admin-section">
+        <h2>📊 Дашборд за сегодня</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Всего броней</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-now">0</div>
+                <div class="stat-label">Сейчас в заведении</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-expecting">0</div>
+                <div class="stat-label">Ожидают</div>
+            </div>
+            <div class="stat-card free">
+                <div class="stat-value" id="stat-free">0</div>
+                <div class="stat-label">Свободных столов</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Карта столов -->
+    <section class="admin-section">
+        <h2>🗺️ Карта столов</h2>
+        <div class="tables-grid" id="tables-grid">
+            <!-- Столы генерируются JS -->
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color free"></span> Свободен</div>
+            <div class="legend-item"><span class="legend-color booked"></span> Бронь</div>
+            <div class="legend-item"><span class="legend-color occupied"></span> Занят</div>
+            <div class="legend-item"><span class="legend-color blocked"></span> Заблокирован</div>
+        </div>
+    </section>
+
+    <!-- Календарь -->
+    <section class="admin-section">
+        <h2>📅 Календарь броней</h2>
+        <div class="calendar-controls">
+            <button onclick="changeDate(-1)">◀</button>
+            <input type="date" id="calendar-date" onchange="loadCalendar()">
+            <button onclick="changeDate(1)">▶</button>
+        </div>
+        <div class="bookings-list" id="calendar-bookings">
+            <!-- Брони генерируются JS -->
+        </div>
+        <button class="export-btn" onclick="exportToCSV()">📥 Экспорт в CSV</button>
+    </section>
+
+    <!-- События -->
+    <section class="admin-section">
+        <h2>🎉 События</h2>
+        <button class="add-event-btn" onclick="showAddEventForm()">+ Добавить событие</button>
+        <div class="events-list" id="events-list">
+            <!-- События генерируются JS -->
+        </div>
+    </section>
+
+    <!-- Гости -->
+    <section class="admin-section">
+        <h2>👥 Гости</h2>
+        <div class="search-box">
+            <input type="text" id="guest-search" placeholder="🔍 Поиск по телефону или имени..." oninput="searchGuests()">
+        </div>
+        <div class="guests-list" id="guests-list">
+            <!-- Гости генерируются JS -->
+        </div>
+    </section>
+</main>
+
+<!-- Модальное окно: Добавить событие -->
+<div class="modal" id="event-modal">
+    <div class="modal-content">
+        <h3>🎉 Добавить событие</h3>
+        <form id="event-form">
+            <input type="hidden" id="event-id">
+            <div class="form-group">
+                <label>Название</label>
+                <input type="text" id="event-title" required placeholder="Например: Живая музыка">
+            </div>
+            <div class="form-group">
+                <label>Дата и время</label>
+                <input type="datetime-local" id="event-datetime" required>
+            </div>
+            <div class="form-group">
+                <label>Описание</label>
+                <textarea id="event-description" rows="3" placeholder="Описание события"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="primary">Создать</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно: Заметка к гостю -->
+<div class="modal" id="notes-modal">
+    <div class="modal-content">
+        <h3>📝 Заметка о госте</h3>
+        <form id="notes-form">
+            <input type="hidden" id="notes-client-id">
+            <div class="form-group">
+                <label>Заметка</label>
+                <textarea id="notes-text" rows="4" placeholder="Например: Любит стол у окна, аллергик на орехи"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/static/admin.js?v=20260223b"></script>
+</body>
+</html>

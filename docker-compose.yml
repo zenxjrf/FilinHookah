@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  webapp:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=sqlite+aiosqlite:///./filin.db
+      - WEBAPP_URL=${WEBAPP_URL}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - WORKERS_CHAT_ID=${WORKERS_CHAT_ID}
+    volumes:
+      - ./filin.db:/app/filin.db
+      - ./logs.txt:/app/logs.txt
+      - ./backups:/app/backups
+    restart: unless-stopped
+
+  bot:
+    build: .
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=sqlite+aiosqlite:///./filin.db
+      - ADMIN_IDS=${ADMIN_IDS}
+      - WORKERS_CHAT_ID=${WORKERS_CHAT_ID}
+    volumes:
+      - ./filin.db:/app/filin.db
+      - ./logs.txt:/app/logs.txt
+    depends_on:
+      - webapp
+    restart: unless-stopped

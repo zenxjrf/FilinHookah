@@ -1,0 +1,215 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Филин Lounge Bar</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/styles.css?v=20260222v">
+</head>
+<body>
+<!-- Верхняя панель с профилем -->
+<header class="top-bar">
+    <div class="welcome-text">
+        <div class="greeting">Добро пожаловать!</div>
+        <div class="venue-name">🦉 Филин Lounge Bar</div>
+    </div>
+    <button class="profile-btn" onclick="toggleProfile()">
+        <img src="" alt="" class="profile-avatar" id="profile-avatar">
+        <span class="profile-name" id="profile-name">Профиль</span>
+    </button>
+</header>
+
+<!-- Выпадающий профиль -->
+<div class="profile-dropdown" id="profile-dropdown">
+    <div class="profile-header">
+        <img src="" alt="" class="profile-avatar-large" id="profile-avatar-large">
+        <div class="profile-info">
+            <div class="profile-name-large" id="profile-name-large">Гость</div>
+            <div class="profile-visits" id="profile-visits">0 визитов</div>
+        </div>
+    </div>
+    <div class="profile-section">
+        <div class="profile-label">💎 Программа лояльности</div>
+        <div class="profile-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="profile-progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="progress-text" id="profile-progress-text">0/10 до бесплатного кальяна</div>
+        </div>
+    </div>
+    <div class="profile-section">
+        <div class="profile-label">🏷️ Личная скидка</div>
+        <div class="profile-discount" id="profile-personal-discount">Нет личной скидки</div>
+    </div>
+    <div class="profile-actions">
+        <button class="profile-action-btn" onclick="showPage('bookings-page')">
+            <span class="action-icon">📋</span>
+            <span>Мои брони</span>
+        </button>
+        <button class="profile-action-btn admin-only" onclick="openAdmin()" style="display: none;">
+            <span class="action-icon">👨‍💼</span>
+            <span>Админ-панель</span>
+        </button>
+    </div>
+</div>
+
+<!-- Главный экран -->
+<main class="pages-container">
+    <!-- Главная страница -->
+    <div class="page active" id="home-page">
+        <div class="hero-banner">
+            <div class="hero-content">
+                <div class="hero-title">Твой идеальный вечер</div>
+                <div class="hero-subtitle">💨 Дым. Вкус. Атмосфера</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stat-item">
+                <div class="stat-value" id="home-visits">0</div>
+                <div class="stat-label">Ваши визиты</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-value" id="home-next-bonus">10</div>
+                <div class="stat-label">До бонуса</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-value">🎁</div>
+                <div class="stat-label">Скидка</div>
+            </div>
+        </div>
+
+        <div class="schedule-card">
+            <div class="schedule-icon">🕐</div>
+            <div class="schedule-info">
+                <div class="schedule-title">График работы</div>
+                <div class="schedule-text" id="home-schedule">Ежедневно с 14:00 до 2:00</div>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <button class="quick-action-btn primary" onclick="showPage('booking-page')">
+                <span class="quick-action-icon">🔥</span>
+                <span>Забронировать стол</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Страница: Бронирование -->
+    <div class="page" id="booking-page">
+        <div class="page-header">
+            <h1>🔥 Бронирование</h1>
+            <p class="page-subtitle">Забронируй стол прямо сейчас</p>
+        </div>
+        <div class="page-content">
+            <form id="booking-form" class="booking-form">
+                <div class="form-group">
+                    <label for="phone">📞 Телефон</label>
+                    <input id="phone" name="phone" type="tel" placeholder="+79991234567" required>
+                </div>
+                <div class="form-group">
+                    <label for="date_time">📅 Дата и время</label>
+                    <input id="date_time" name="date_time" type="datetime-local" required>
+                </div>
+                <div class="form-group">
+                    <label for="table_no">🪑 Столик</label>
+                    <select id="table_no" name="table_no" required>
+                        <option value="1">Стол 1</option>
+                        <option value="2">Стол 2</option>
+                        <option value="3">Стол 3</option>
+                        <option value="4">Стол 4</option>
+                        <option value="5">Стол 5</option>
+                        <option value="6">Стол 6</option>
+                        <option value="7">Стол 7</option>
+                        <option value="8">Стол 8</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="guests">👥 Гостей</label>
+                    <input id="guests" name="guests" type="number" min="1" max="20" value="2" required>
+                </div>
+                <div class="form-group">
+                    <label for="comment">📝 Комментарий</label>
+                    <textarea id="comment" name="comment" rows="3" placeholder="Пожелания к бронированию"></textarea>
+                </div>
+                <button type="submit" class="submit-btn">✨ Подтвердить бронь</button>
+            </form>
+            <div id="booking-status" class="status-message"></div>
+        </div>
+    </div>
+
+    <!-- Страница: События и акции -->
+    <div class="page" id="promotions-page">
+        <div class="page-header">
+            <h1>🎉 События и акции</h1>
+            <p class="page-subtitle">Специальные предложения и мероприятия</p>
+        </div>
+        <div class="page-content">
+            <div id="promotions-list" class="content-list"></div>
+        </div>
+    </div>
+
+    <!-- Страница: Контакты -->
+    <div class="page" id="contacts-page">
+        <div class="page-header">
+            <h1>📍 Контакты</h1>
+            <p class="page-subtitle">Свяжитесь с нами</p>
+        </div>
+        <div class="page-content">
+            <div id="contacts-text" class="contacts-display"></div>
+        </div>
+    </div>
+
+    <!-- Страница: Меню -->
+    <div class="page" id="menu-page">
+        <div class="page-header">
+            <h1>💨 Меню</h1>
+            <p class="page-subtitle">Наши кальяны и напитки</p>
+        </div>
+        <div class="page-content">
+            <div id="menu-list" class="content-list"></div>
+        </div>
+    </div>
+
+    <!-- Страница: Мои брони (из профиля) -->
+    <div class="page" id="bookings-page">
+        <div class="page-header">
+            <h1>📋 Мои брони</h1>
+            <p class="page-subtitle">Ваши активные бронирования</p>
+        </div>
+        <div class="page-content">
+            <div id="bookings-list" class="content-list"></div>
+        </div>
+    </div>
+</main>
+
+<!-- Нижняя навигация -->
+<nav class="bottom-nav">
+    <button class="nav-btn active" data-page="home-page">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Главная</span>
+    </button>
+    <button class="nav-btn" data-page="booking-page">
+        <span class="nav-icon">🔥</span>
+        <span class="nav-label">Бронь</span>
+    </button>
+    <button class="nav-btn" data-page="promotions-page">
+        <span class="nav-icon">🎉</span>
+        <span class="nav-label">События</span>
+    </button>
+    <button class="nav-btn" data-page="contacts-page">
+        <span class="nav-icon">📍</span>
+        <span class="nav-label">Контакты</span>
+    </button>
+    <button class="nav-btn" data-page="menu-page">
+        <span class="nav-icon">💨</span>
+        <span class="nav-label">Меню</span>
+    </button>
+</nav>
+
+<script src="/static/app.js?v=20260223a"></script>
+</body>
+</html>
