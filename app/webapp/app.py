@@ -859,5 +859,40 @@ async def free_table(
                 booking.status = "completed"
     
     await session.commit()
-    
+
     return {"status": "freed", "table_no": table_no}
+
+
+# ==================== TELEGRAM WEBHOOK ====================
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request) -> dict:
+    """Обработка обновлений от Telegram (webhook)."""
+    from aiogram import Bot, Dispatcher
+    from aiogram.types import Update
+    from aiogram.enums import ParseMode
+    from aiogram.client.default import DefaultBotProperties
+    from app.bot.middleware.rate_limit import RateLimitMiddleware
+    
+    bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp = Dispatcher()
+    
+    # Middleware
+    dp.message.middleware(RateLimitMiddleware())
+    dp.callback_query.middleware(RateLimitMiddleware())
+    
+    # Регистрируем все обработчики
+    dp.include_router(register_common_handlers(get_session, settings))
+    dp.include_router(register_webapp_handlers(get_session, settings))
+    dp.include_router(register_booking_actions(get_session, settings))
+    dp.include_router(register_admin_dashboard(get_session, settings))
+    dp.include_router(register_admin_handlers(get_session, settings))
+    
+    try:
+        update_data = await request.json()
+        update = Update(**update_data)
+        await dp.feed_update(bot, update)
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}", exc_info=True)
+        return {"ok": False}

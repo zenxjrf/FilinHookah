@@ -5,6 +5,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.types import BotCommand
 
 from app.bot.handlers.admin import register_admin_handlers
 from app.bot.handlers.admin_dashboard import register_admin_dashboard
@@ -19,6 +20,33 @@ from app.logging import get_logger
 from app.logging_config import setup_logging
 
 logger = get_logger(__name__)
+
+
+async def set_bot_commands(bot: Bot) -> None:
+    """Установка команд бота."""
+    commands = [
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="menu", description="Показать меню"),
+        BotCommand(command="mybookings", description="Мои брони"),
+        BotCommand(command="help", description="Помощь"),
+    ]
+    await bot.set_my_commands(commands)
+
+
+async def set_webhook(bot: Bot, webhook_url: str) -> None:
+    """Установка webhook."""
+    await bot.set_webhook(
+        url=webhook_url,
+        allowed_updates=["message", "callback_query", "pre_checkout_query"],
+    )
+    logger.info(f"Webhook установлен: {webhook_url}")
+    await set_bot_commands(bot)
+
+
+async def remove_webhook(bot: Bot) -> None:
+    """Удаление webhook."""
+    await bot.delete_webhook()
+    logger.info("Webhook удалён")
 
 
 async def run_polling() -> None:

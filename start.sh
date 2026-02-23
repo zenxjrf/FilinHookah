@@ -5,19 +5,10 @@
 PORT=${PORT:-8000}
 echo "Starting WebApp on port $PORT..."
 
-# Запускаем WebApp в фоне
-python -m app.run_webapp &
-WEBAPP_PID=$!
+# Сначала настраиваем webhook для бота
+echo "Setting up Telegram webhook..."
+python main.py
 
-# Запускаем бота в фоне
-echo "Starting Telegram bot..."
-python main.py &
-BOT_PID=$!
-
-# Ждём завершения любого из процессов
-wait -n $WEBAPP_PID $BOT_PID
-
-# Если один процесс упал, останавливаем другой
-echo "One process exited, stopping others..."
-kill $WEBAPP_PID 2>/dev/null
-kill $BOT_PID 2>/dev/null
+# Запускаем WebApp (он будет обрабатывать webhook от Telegram)
+echo "Starting WebApp server..."
+exec python -m app.run_webapp
