@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     sqlite3 \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Python зависимости
@@ -15,15 +16,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем проект
 COPY . .
 
-# Создаём директорию для бэкапов
+# Создаём директорию для логов и БД
 RUN mkdir -p backups
 
-# Порт для Web App
-EXPOSE 8000
+# Делаем скрипт запуска исполняемым
+RUN chmod +x start.sh
 
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1
 ENV LOG_PATH=logs.txt
 
-# Запускаем ТОЛЬКО Web App (бот будет отдельным сервисом)
-CMD ["python", "-m", "app.run_webapp"]
+# Запускаем оба процесса через скрипт
+CMD ["./start.sh"]

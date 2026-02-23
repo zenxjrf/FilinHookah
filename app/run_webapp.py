@@ -1,4 +1,5 @@
 import logging
+import os
 
 import uvicorn
 
@@ -10,11 +11,14 @@ logger = get_logger(__name__)
 def run() -> None:
     logger.info("Запуск Web App сервера...")
     try:
+        # Railway назначает порт через переменную PORT
+        port = int(os.environ.get("PORT", 8000))
+        logger.info(f"Listening on port {port}")
         uvicorn.run(
             "app.webapp.app:app",
             host="0.0.0.0",
-            port=8000,
-            reload=False,  # Отключаем reload для продакшена
+            port=port,
+            reload=False,
             log_level="info",
             access_log=True,
         )

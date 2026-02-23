@@ -51,8 +51,9 @@ async def run_polling() -> None:
     dp.include_router(register_admin_handlers(session_factory, settings))
 
     scheduler = setup_scheduler(bot, session_factory)
-    
-    logger.info(f"Запуск polling для бота @{bot.username}...")
+
+    bot_me = await bot.get_me()
+    logger.info(f"Запуск polling для бота @{bot_me.username}...")
 
     try:
         await dp.start_polling(bot)
