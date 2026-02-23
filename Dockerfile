@@ -2,20 +2,23 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Системные зависимости
+# Системные зависимости - меняем порядок чтобы сломать кэш
 RUN apt-get update && apt-get install -y \
-    gcc \
-    sqlite3 \
     bash \
+    sqlite3 \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 # Python зависимости
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем проект с пересозданием
+# Копируем проект
 COPY . .
-RUN rm -rf __pycache__ app/__pycache__ app/*/__pycache__ 2>/dev/null || true
+
+# Очищаем кэш Python
+RUN find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+RUN find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
 # Создаём директорию для логов и БД
 RUN mkdir -p backups
@@ -26,7 +29,7 @@ RUN chmod +x start.sh
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1
 ENV LOG_PATH=logs.txt
-ENV DEPLOY_VERSION=7
+ENV DEPLOY_VERSION=8
 
 # Запускаем скрипт
 CMD ["bash", "start.sh"]
