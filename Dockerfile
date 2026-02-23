@@ -25,7 +25,7 @@ RUN chmod +x start.sh
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1
 ENV LOG_PATH=logs.txt
-ENV DEPLOY_VERSION=3
+ENV DEPLOY_VERSION=4
 
 # Запускаем скрипт
 CMD ["bash", "start.sh"]
