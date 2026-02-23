@@ -880,6 +880,10 @@ async def telegram_webhook(request: Request) -> dict:
     from aiogram.client.default import DefaultBotProperties
     from app.bot.middleware.rate_limit import RateLimitMiddleware
     from app.db.base import session_factory
+    import logging
+    
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -897,9 +901,12 @@ async def telegram_webhook(request: Request) -> dict:
 
     try:
         update_data = await request.json()
+        logger.info(f"Received update: {update_data}")
         update = Update(**update_data)
-        await dp.feed_update(bot, update)
+        await dp.feed_webhook_update(bot, update)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
         return {"ok": False}
+    finally:
+        await bot.session.close()
