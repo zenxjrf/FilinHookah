@@ -25,5 +25,5 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 ENV LOG_PATH=logs.txt
 
-# Запуск (можно переопределить в docker-compose)
-CMD ["sh", "-c", "python -m app.run_webapp & python main.py"]
+# Запускаем ТОЛЬКО Web App (бот будет отдельным сервисом)
+CMD ["python", "-m", "app.run_webapp"]
