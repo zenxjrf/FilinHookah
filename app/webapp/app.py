@@ -882,8 +882,8 @@ async def telegram_webhook(request: Request) -> dict:
     from app.db.base import session_factory
     import logging
     
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger("telegram_webhook")
 
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -893,6 +893,7 @@ async def telegram_webhook(request: Request) -> dict:
     dp.callback_query.middleware(RateLimitMiddleware())
 
     # Регистрируем все обработчики
+    logger.info("Registering handlers...")
     dp.include_router(register_common_handlers(session_factory, settings))
     dp.include_router(register_webapp_handlers(session_factory, settings))
     dp.include_router(register_booking_actions(session_factory, settings))
@@ -902,11 +903,22 @@ async def telegram_webhook(request: Request) -> dict:
     try:
         update_data = await request.json()
         logger.info(f"Received update: {update_data}")
+        
+        # Проверяем тип обновления
+        if "message" in update_data:
+            logger.info(f"Message from {update_data['message'].get('from', {}).get('id')}: {update_data['message'].get('text')}")
+        elif "callback_query" in update_data:
+            logger.info(f"Callback from {update_data['callback_query'].get('from', {}).get('id')}")
+        
         update = Update(**update_data)
-        await dp.feed_webhook_update(bot, update)
+        logger.info(f"Processing update {update.update_id}...")
+        
+        result = await dp.feed_webhook_update(bot, update)
+        logger.info(f"Update processed, result: {result}")
+        
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
-        return {"ok": False}
+        return {"ok": False, "error": str(e)}
     finally:
         await bot.session.close()
