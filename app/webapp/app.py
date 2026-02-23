@@ -31,21 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Тестовый endpoint
-@app.get("/test")
-async def test_endpoint():
-    return {"status": "ok", "message": "Webhook endpoint is working"}
-
-# Telegram webhook endpoint
-@app.post("/api/telegram/webhook")
-async def telegram_webhook_test(request: Request):
-    """Simple webhook test."""
-    try:
-        data = await request.json()
-        return {"ok": True, "received": data}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -880,6 +865,12 @@ async def free_table(
 
 # ==================== TELEGRAM WEBHOOK ====================
 
+@app.get("/test")
+async def test_endpoint() -> dict:
+    """Test endpoint to verify app is working."""
+    return {"status": "ok", "message": "Webhook endpoint is working"}
+
+
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
     """Обработка обновлений от Telegram (webhook)."""
@@ -889,21 +880,21 @@ async def telegram_webhook(request: Request) -> dict:
     from aiogram.client.default import DefaultBotProperties
     from app.bot.middleware.rate_limit import RateLimitMiddleware
     from app.db.base import session_factory
-    
+
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
-    
+
     # Middleware
     dp.message.middleware(RateLimitMiddleware())
     dp.callback_query.middleware(RateLimitMiddleware())
-    
-    # Регистрируем все обработчики (передаём session_factory вместо get_session)
+
+    # Регистрируем все обработчики
     dp.include_router(register_common_handlers(session_factory, settings))
     dp.include_router(register_webapp_handlers(session_factory, settings))
     dp.include_router(register_booking_actions(session_factory, settings))
     dp.include_router(register_admin_dashboard(session_factory, settings))
     dp.include_router(register_admin_handlers(session_factory, settings))
-    
+
     try:
         update_data = await request.json()
         update = Update(**update_data)
