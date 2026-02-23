@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import sys
 
@@ -6,14 +7,17 @@ from aiogram import Bot
 from app.config import get_settings
 from app.run_bot import run_polling, set_webhook, remove_webhook
 
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(name)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 async def run_webhook() -> None:
     """Настройка webhook для Railway."""
-    print(">>> [MAIN] Starting webhook setup...", flush=True)
+    logger.info("Starting webhook setup...")
     settings = get_settings()
     
     if not settings.bot_token:
-        print(">>> [MAIN] ERROR: BOT_TOKEN not set!", flush=True)
+        logger.critical("BOT_TOKEN not set!")
         return
     
     bot = Bot(token=settings.bot_token)
@@ -21,28 +25,28 @@ async def run_webhook() -> None:
     webapp_url = os.getenv("WEBAPP_URL", "http://localhost:8000")
     webhook_url = f"{webapp_url}/api/telegram/webhook"
     
-    print(f">>> [MAIN] Webhook URL: {webhook_url}", flush=True)
+    logger.info(f"Webhook URL: {webhook_url}")
     
     try:
         # Удаляем старый webhook
         await remove_webhook(bot)
         # Устанавливаем новый webhook
         await set_webhook(bot, webhook_url)
-        print(f">>> [MAIN] Webhook set successfully: {webhook_url}", flush=True)
+        logger.info(f"Webhook set successfully: {webhook_url}")
     except Exception as e:
-        print(f">>> [MAIN] ERROR setting webhook: {e}", flush=True)
+        logger.error(f"ERROR setting webhook: {e}", exc_info=True)
     finally:
         await bot.session.close()
 
 
 if __name__ == "__main__":
-    print(">>> [MAIN] Script started", flush=True)
+    logger.info("Script started")
     # Проверяем, запущены ли через Railway (есть PORT)
     if os.getenv("PORT"):
         # Railway - используем webhook
-        print(">>> [MAIN] Running in Railway mode (webhook)", flush=True)
+        logger.info("Running in Railway mode (webhook)")
         asyncio.run(run_webhook())
     else:
         # Локальный запуск - polling
-        print(">>> [MAIN] Running in local mode (polling)", flush=True)
+        logger.info("Running in local mode (polling)")
         asyncio.run(run_polling())
