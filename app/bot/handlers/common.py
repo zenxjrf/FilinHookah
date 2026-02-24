@@ -21,15 +21,20 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
 
     @router.message(Command("start"))
     async def cmd_start(message: Message) -> None:
+        print(f"[HANDLER] /start called by {message.from_user.id}", flush=True)
         if not message.from_user:
+            print(f"[HANDLER] No from_user", flush=True)
             return
         async with session_factory() as session:
+            print(f"[HANDLER] Creating client...", flush=True)
             await crud.get_or_create_client(
                 session=session,
                 telegram_id=message.from_user.id,
                 username=message.from_user.username,
                 full_name=message.from_user.full_name,
             )
+            print(f"[HANDLER] Client created!", flush=True)
+        print(f"[HANDLER] Sending menu...", flush=True)
         await message.answer(
             "🦉 <b>Филин Lounge Bar</b>\n\n"
             "💨 Дым. Вкус. Атмосфера\n\n"
@@ -38,6 +43,7 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
             "🏆 10-й кальян бесплатно",
             reply_markup=main_menu_keyboard(settings.webapp_url),
         )
+        print(f"[HANDLER] Menu sent!", flush=True)
 
     @router.callback_query(F.data == "promotions")
     async def promotions(callback: CallbackQuery) -> None:
