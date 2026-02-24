@@ -1,4 +1,6 @@
 """Global dispatcher for webhook mode."""
+print(">>> DISPATCHER BUILD 999 LOADED <<<", flush=True)
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
