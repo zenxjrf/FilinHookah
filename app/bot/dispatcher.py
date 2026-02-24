@@ -7,11 +7,25 @@ from aiogram.enums import ParseMode
 
 from app.bot.middleware.rate_limit import RateLimitMiddleware
 from app.config import get_settings
-from app.db.base import session_factory
+from app.db.base import session_factory, engine, Base
+from app.db import models  # noqa: F401
 
 # Глобальные bot и dispatcher для webhook
 _webhook_bot: Bot | None = None
 _webhook_dp: Dispatcher | None = None
+
+
+async def init_database():
+    """Инициализировать БД при первом вызове."""
+    print("[DB] Creating tables...", flush=True)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("[DB] Tables created!", flush=True)
+    except Exception as e:
+        print(f"[DB] Error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
 
 def get_bot() -> Bot:
