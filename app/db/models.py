@@ -19,14 +19,14 @@ def ensure_tables_created():
     if not _tables_created:
         import asyncio
         from app.db.base import engine
-        
+
         async def _create():
             global _tables_created
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             _tables_created = True
             print("[DB] Tables created at import time!", flush=True)
-        
+
         try:
             asyncio.run(_create())
         except Exception as e:
@@ -49,16 +49,16 @@ class Client(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True, nullable=True)
-    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone_hash: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     visits: Mapped[int] = mapped_column(Integer, default=0)
-    consent_accepted: Mapped[bool] = mapped_column(Boolean, default=True)
+    consent_accepted: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # Заметки о клиенте
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
-    bookings: Mapped[list[Booking]] = relationship(back_populates="client")
-    reviews: Mapped[list[Review]] = relationship(back_populates="client")
+    bookings: Mapped[list[Booking]] = relationship(back_populates="client", lazy="selectin")
+    reviews: Mapped[list[Review]] = relationship(back_populates="client", lazy="selectin")
 
 
 class Booking(Base):
@@ -78,24 +78,25 @@ class Booking(Base):
     guests: Mapped[int] = mapped_column(Integer, default=2)
     table_no: Mapped[int] = mapped_column(Integer, index=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default=BookingStatus.PENDING.value)
-    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_staff_booking: Mapped[bool] = mapped_column(Boolean, default=False)  # Бронь от сотрудника
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(16), default=BookingStatus.PENDING.value, index=True)
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # За 24 часа
+    reminder_1h_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # За 1 час
+    is_staff_booking: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # Бронь от сотрудника
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
-    client: Mapped[Client] = relationship(back_populates="bookings")
-    review: Mapped[Review | None] = relationship(back_populates="booking")
+    client: Mapped[Client] = relationship(back_populates="bookings", lazy="joined")
+    review: Mapped[Review | None] = relationship(back_populates="booking", lazy="joined")
 
 
 class Promotion(Base):
     __tablename__ = "promotions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    title: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255), index=True)
     description: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class Review(Base):
@@ -103,13 +104,13 @@ class Review(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
-    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id"), nullable=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id"), nullable=True, index=True)
     rating: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
-    client: Mapped[Client] = relationship(back_populates="reviews")
-    booking: Mapped[Booking | None] = relationship(back_populates="review")
+    client: Mapped[Client] = relationship(back_populates="reviews", lazy="joined")
+    booking: Mapped[Booking | None] = relationship(back_populates="review", lazy="joined")
 
 
 class VenueSettings(Base):
@@ -120,3 +121,15 @@ class VenueSettings(Base):
     contacts_text: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+
+class Subscriber(Base):
+    """Подписчики на рассылку."""
+    __tablename__ = "subscribers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    subscribed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_mailed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

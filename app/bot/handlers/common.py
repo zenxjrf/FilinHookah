@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+import logging
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
@@ -10,6 +12,7 @@ from app.config import Settings
 from app.db import crud
 
 router = Router(name="common")
+logger = logging.getLogger(__name__)
 
 
 def register_common_handlers(session_factory: async_sessionmaker, settings: Settings) -> Router:
@@ -33,15 +36,24 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
                 username=message.from_user.username,
                 full_name=message.from_user.full_name,
             )
-            print(f"[HANDLER] Client created!", flush=True)
+            # Автоматическая подписка на рассылку
+            await crud.add_subscriber(
+                session=session,
+                telegram_id=message.from_user.id,
+                username=message.from_user.username,
+                full_name=message.from_user.full_name,
+            )
+            print(f"[HANDLER] Client created & subscribed!", flush=True)
         print(f"[HANDLER] Sending menu...", flush=True)
         await message.answer(
             "🦉 <b>Филин Lounge Bar</b>\n\n"
             "💨 Дым. Вкус. Атмосфера\n\n"
             "Открой мини-приложение — забронируй стол, узнай об акциях и получи бонусы!\n\n"
             "🎁 5-й кальян со скидкой 50%\n"
-            "🏆 10-й кальян бесплатно",
+            "🏆 10-й кальян бесплатно\n\n"
+            "✅ <i>Вы подписаны на уведомления об акциях и событиях</i>",
             reply_markup=main_menu_keyboard(settings.webapp_url),
+            parse_mode="HTML",
         )
         print(f"[HANDLER] Menu sent!", flush=True)
 

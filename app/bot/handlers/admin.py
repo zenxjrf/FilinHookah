@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import datetime
 
 from aiogram import F, Router
@@ -9,6 +11,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.config import Settings
 from app.db import crud
+
+# Состояние для рассылки
+_broadcast_state: dict[int, bool] = {}
+logger = logging.getLogger(__name__)
 
 
 def create_admin_router(session_factory: async_sessionmaker, settings: Settings) -> Router:
@@ -485,6 +491,120 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
         async with session_factory() as session:
             promo = await crud.add_promotion(session, title, description, image_url)
         await message.answer(f"Акция #{promo.id} добавлена.")
+
+    @router.message(Command("broadcast"))
+    async def broadcast_command(message: Message) -> None:
+        """Рассылка всем подписчикам."""
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from app.db import crud as db_crud
+        
+        if not is_admin(message):
+            await message.answer("Нет доступа.")
+            return
+        
+        # Получаем количество подписчиков
+        async with session_factory() as session:
+            count = await db_crud.get_subscribers_count(session)
+        
+        if count == 0:
+            await message.answer("❌ Нет активных подписчиков для рассылки.")
+            return
+        
+        await message.answer(
+            f"📢 <b>Рассылка подписчикам</b>\n\n"
+            f"👥 Активных подписчиков: <b>{count}</b>\n\n"
+            f"Отправьте сообщение для рассылки.\n"
+            f"Поддерживается текст, фото, видео.\n\n"
+            f"❗ Отмена: /cancel",
+            parse_mode="HTML"
+        )
+        
+        # Устанавливаем состояние ожидания сообщения
+        # (В production лучше использовать FSM)
+        await message.answer(
+            "💡 <b>Совет:</b> Для отправки фото сначала отправьте фото с подписью,\n"
+            f"и оно будет отправлено всем {count} подписчикам.",
+            parse_mode="HTML"
+        )
+
+    @router.message(Command("subscribers"))
+    async def subscribers_command(message: Message) -> None:
+        """Показать статистику подписчиков."""
+        from app.db import crud as db_crud
+        
+        if not is_admin(message):
+            await message.answer("Нет доступа.")
+            return
+        
+        async with session_factory() as session:
+            count = await db_crud.get_subscribers_count(session)
+        
+        await message.answer(
+            f"📊 <b>Статистика подписчиков</b>\n\n"
+            f"👥 Активных подписчиков: <b>{count}</b>"
+        )
+
+    @router.message(Command("cancel"))
+    async def cancel_broadcast(message: Message) -> None:
+        """Отменить режим рассылки."""
+        if not is_admin(message):
+            return
+        _broadcast_state.pop(message.from_user.id, None)
+        await message.answer("✅ Режим рассылки отменен.")
+
+    # Обработчик сообщений для рассылки
+    @router.message()
+    async def handle_broadcast_message(message: Message) -> None:
+        """Обработка сообщения для рассылки."""
+        from aiogram import Bot
+        from app.db import crud as db_crud
+        
+        if not is_admin(message):
+            return
+        
+        # Проверяем, в режиме ли рассылки админ
+        if not _broadcast_state.get(message.from_user.id):
+            return
+        
+        async with session_factory() as session:
+            subscribers = await db_crud.get_active_subscribers(session)
+        
+        if not subscribers:
+            await message.answer("❌ Нет подписчиков для рассылки.")
+            _broadcast_state.pop(message.from_user.id, None)
+            return
+        
+        bot = Bot(token=settings.bot_token)
+        success_count = 0
+        fail_count = 0
+        
+        # Отправляем сообщение всем подписчикам
+        for sub in subscribers:
+            try:
+                # Копируем сообщение
+                await bot.copy_message(
+                    chat_id=sub.telegram_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                )
+                await db_crud.update_last_mailed(session, sub.telegram_id)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to send to {sub.telegram_id}: {e}")
+                fail_count += 1
+            await asyncio.sleep(0.05)  # Anti-flood
+        
+        await bot.session.close()
+        
+        _broadcast_state.pop(message.from_user.id, None)
+        
+        await message.answer(
+            f"✅ <b>Рассылка завершена!</b>\n\n"
+            f"📤 Отправлено: <b>{success_count}</b>\n"
+            f"❌ Ошибок: <b>{fail_count}</b>\n"
+            f"👥 Всего подписчиков: <b>{len(subscribers)}</b>",
+            parse_mode="HTML"
+        )
 
     return router
 

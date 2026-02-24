@@ -1,9 +1,60 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Environment
 .env
+.env.local
+
+# Database
+*.db
+sqlite.db
 filin.db
+
+# Logs
+*.log
 logs.txt
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
 .pytest_cache/
-.idea/workspace.xml
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+backups/
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Render
+.render.local
+
+# Docker
+*.tar
+
+# TLS/SSL
+*.key
+*.pem
+*.crt
 

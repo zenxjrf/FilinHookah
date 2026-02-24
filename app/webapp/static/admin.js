@@ -3,6 +3,7 @@ tg.ready();
 
 let currentDate = new Date().toISOString().split('T')[0];
 let allGuests = [];
+let ws = null;
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,7 +13,75 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCalendar();
     loadEvents();
     loadGuests();
+    connectWebSocket();
 });
+
+// WebSocket подключение для реального времени
+function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/admin`;
+    
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+        // Отправляем ping для поддержания соединения
+        setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 30000);
+    };
+    
+    ws.onmessage = (event) => {
+        try {
+            const message = JSON.parse(event.data);
+            console.log('WebSocket message:', message);
+            
+            if (message.type === 'booking_update') {
+                // Обновляем данные при изменении брони
+                loadTables();
+                loadCalendar();
+                loadDashboard();
+                
+                // Показываем уведомление
+                showNotification(`Бронь #${message.booking_id}: ${message.action}`, message.status);
+            }
+        } catch (e) {
+            console.error('Error processing WebSocket message:', e);
+        }
+    };
+    
+    ws.onclose = () => {
+        console.log('WebSocket disconnected. Reconnecting in 5s...');
+        setTimeout(connectWebSocket, 5000);
+    };
+    
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+}
+
+function showNotification(title, status) {
+    // Визуальное уведомление
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerHTML = `<strong>${title}</strong>`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        padding: 16px 24px;
+        background: ${status === 'confirmed' ? 'var(--success)' : status === 'canceled' ? 'var(--danger)' : 'var(--gold)'};
+        color: white;
+        border-radius: 12px;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
 
 // Загрузка дашборда
 async function loadDashboard() {

@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -30,6 +30,11 @@ class Settings:
     log_path: str
     default_schedule: str
     default_contacts: str
+    # PostgreSQL pool settings
+    db_pool_size: int = field(default=10)
+    db_max_overflow: int = field(default=5)
+    db_pool_timeout: int = field(default=30)
+    db_pool_recycle: int = field(default=1800)
 
 
 @lru_cache(maxsize=1)
@@ -42,7 +47,7 @@ def get_settings() -> Settings:
 
     return Settings(
         bot_token=_clean_env(os.getenv("BOT_TOKEN", "")),
-        db_url=_clean_env(os.getenv("DATABASE_URL", "sqlite+aiosqlite:///filin.db")),
+        db_url=_clean_env(os.getenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/filin")),
         webapp_url=_clean_env(os.getenv("WEBAPP_URL", "http://localhost:8000")),
         admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
         workers_chat_id=workers_chat_id,
@@ -52,4 +57,8 @@ def get_settings() -> Settings:
             "DEFAULT_CONTACTS",
             "Phone: +7 (000) 000-00-00\\nAddress: Example street, 1",
         ),
+        db_pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+        db_max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "5")),
+        db_pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        db_pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "1800")),
     )

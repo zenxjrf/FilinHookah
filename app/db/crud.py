@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from typing import Optional
 
-from sqlalchemy import Select, and_, desc, select
+from sqlalchemy import and_, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Booking, BookingStatus, Client, Promotion, Review, VenueSettings
+from app.db.models import Booking, BookingStatus, Client, Promotion, Review, Subscriber, VenueSettings
 
 
 def _is_overlap(
@@ -29,13 +30,19 @@ async def get_or_create_client(
 ) -> Client:
     client = await session.scalar(select(Client).where(Client.telegram_id == telegram_id))
     if client:
+        # Обновляем данные только если они изменились
+        updated = False
         if username and client.username != username:
             client.username = username
+            updated = True
         if full_name and client.full_name != full_name:
             client.full_name = full_name
+            updated = True
         if phone and client.phone_hash != phone:
             client.phone_hash = phone
-        await session.commit()
+            updated = True
+        if updated:
+            await session.commit()
         return client
 
     client = Client(
@@ -63,6 +70,7 @@ async def create_booking(
     comment: str | None = None,
     duration_minutes: int = 120,
 ) -> Booking:
+    # Оптимизированный запрос - проверяем только активные брони
     from_time = booking_at - timedelta(hours=4)
     to_time = booking_at + timedelta(hours=4)
     stmt: Select[tuple[Booking]] = select(Booking).where(
@@ -114,7 +122,7 @@ async def list_user_bookings(session: AsyncSession, client_id: int) -> list[Book
             and_(
                 Booking.client_id == client_id,
                 Booking.status.not_in([BookingStatus.COMPLETED.value, BookingStatus.CANCELED.value]),
-                Booking.is_staff_booking.is_(False),  # Не показывать технические брони
+                Booking.is_staff_booking.is_(False),
             )
         )
         .order_by(desc(Booking.booking_at))
@@ -147,9 +155,12 @@ async def close_booking(session: AsyncSession, booking_id: int) -> Booking | Non
     if not booking:
         return None
     booking.status = BookingStatus.COMPLETED.value
-    client = await session.get(Client, booking.client_id)
-    if client:
-        client.visits += 1
+    # Инкремент визитов через update для эффективности
+    await session.execute(
+        update(Client)
+        .where(Client.id == booking.client_id)
+        .values(visits=Client.visits + 1)
+    )
     await session.commit()
     await session.refresh(booking)
     return booking
@@ -264,18 +275,30 @@ async def get_client_stats(session: AsyncSession, client_id: int) -> dict:
     client = await session.get(Client, client_id)
     if not client:
         return {}
+
+    # Оптимизированные агрегации
+    stmt = select(
+        func.count(Booking.id).label("total"),
+        func.sum(func.case((Booking.status == BookingStatus.COMPLETED.value, 1), else_=0)).label("completed"),
+        func.sum(func.case((Booking.status == BookingStatus.CANCELED.value, 1), else_=0)).label("canceled"),
+        func.max(Booking.booking_at).label("last_visit"),
+    ).where(Booking.client_id == client_id)
     
-    bookings = await session.scalars(
-        select(Booking).where(Booking.client_id == client_id)
-    )
-    bookings_list = bookings.all()
+    result = (await session.execute(stmt)).first()
     
+    # Любимый стол
+    stmt_favorite = select(
+        Booking.table_no,
+        func.count(Booking.id).label("cnt")
+    ).where(Booking.client_id == client_id).group_by(Booking.table_no).order_by(desc("cnt")).limit(1)
+    favorite_result = (await session.execute(stmt_favorite)).first()
+
     return {
-        "total_bookings": len(bookings_list),
-        "completed_bookings": len([b for b in bookings_list if b.status == BookingStatus.COMPLETED.value]),
-        "canceled_bookings": len([b for b in bookings_list if b.status == BookingStatus.CANCELED.value]),
-        "last_visit": max([b.booking_at for b in bookings_list], default=None),
-        "favorite_table": max(set([b.table_no for b in bookings_list]), key=[b.table_no for b in bookings_list].count, default=None),
+        "total_bookings": result.total if result else 0,
+        "completed_bookings": result.completed if result else 0,
+        "canceled_bookings": result.canceled if result else 0,
+        "last_visit": result.last_visit if result else None,
+        "favorite_table": favorite_result.table_no if favorite_result else None,
         "visits": client.visits,
         "notes": client.notes,
     }
@@ -294,19 +317,15 @@ async def update_client_notes(session: AsyncSession, client_id: int, notes: str)
 
 async def cancel_booking_by_client(session: AsyncSession, booking_id: int, telegram_id: int) -> Booking | None:
     """Отмена брони гостем (без ограничений по времени)."""
-    from datetime import UTC
-
     stmt = select(Booking).options(selectinload(Booking.client)).where(Booking.id == booking_id)
     booking = await session.scalar(stmt)
 
     if not booking:
         return None
 
-    # Проверяем, что это бронь клиента
     if booking.client.telegram_id != telegram_id:
         return None
 
-    # Отменяем бронь (без ограничений по времени)
     booking.status = BookingStatus.CANCELED.value
     await session.commit()
     await session.refresh(booking)
@@ -314,38 +333,107 @@ async def cancel_booking_by_client(session: AsyncSession, booking_id: int, teleg
 
 
 async def get_today_stats(session: AsyncSession) -> dict:
-    """Получить статистику за сегодня."""
-    from datetime import UTC
+    """Получить статистику за сегодня (оптимизировано)."""
     now = datetime.now(tz=UTC).replace(tzinfo=None)
     today_start = datetime.combine(now.date(), datetime.min.time())
     today_end = datetime.combine(now.date(), datetime.max.time())
-    
-    # Все брони на сегодня
-    stmt = select(Booking).where(
+
+    # Агрегации одним запросом
+    stmt = select(
+        func.count(Booking.id).label("total"),
+        func.sum(func.case(
+            (and_(
+                Booking.status == BookingStatus.CONFIRMED.value,
+                Booking.booking_at <= now
+            ), 1),
+            else_=0
+        )).label("now_in"),
+        func.sum(func.case(
+            (Booking.status == BookingStatus.PENDING.value, 1),
+            else_=0
+        )).label("expecting"),
+    ).where(
         and_(
             Booking.booking_at >= today_start,
             Booking.booking_at <= today_end,
         )
     )
-    bookings = (await session.scalars(stmt)).all()
     
-    # Сейчас в заведении (confirmed и booking_at < now)
-    now_in_restaurant = len([
-        b for b in bookings 
-        if b.status == BookingStatus.CONFIRMED.value and b.booking_at <= now
-    ])
+    result = (await session.execute(stmt)).first()
     
-    # Ожидают (pending)
-    expecting = len([b for b in bookings if b.status == BookingStatus.PENDING.value])
-    
-    # Свободные столы (всего 8)
-    busy_tables = set([b.table_no for b in bookings if b.status in [BookingStatus.CONFIRMED.value, BookingStatus.PENDING.value]])
-    free_tables = 8 - len(busy_tables)
-    
+    # Занятые столы
+    stmt_tables = select(Booking.table_no).where(
+        and_(
+            Booking.booking_at >= today_start,
+            Booking.booking_at <= today_end,
+            Booking.status.in_([BookingStatus.CONFIRMED.value, BookingStatus.PENDING.value]),
+        )
+    ).distinct()
+    busy_tables = set((await session.scalars(stmt_tables)).all())
+
     return {
-        "total_bookings": len(bookings),
-        "now_in_restaurant": now_in_restaurant,
-        "expecting": expecting,
-        "free_tables": max(0, free_tables),
+        "total_bookings": result.total if result else 0,
+        "now_in_restaurant": result.now_in if result else 0,
+        "expecting": result.expecting if result else 0,
+        "free_tables": max(0, 8 - len(busy_tables)),
         "busy_tables": list(busy_tables),
     }
+
+
+# ==================== SUBSCRIBERS ====================
+
+async def add_subscriber(
+    session: AsyncSession,
+    telegram_id: int,
+    username: str | None = None,
+    full_name: str | None = None,
+) -> Subscriber:
+    """Добавить подписчика или обновить существующего."""
+    subscriber = await session.scalar(select(Subscriber).where(Subscriber.telegram_id == telegram_id))
+    if subscriber:
+        if not subscriber.is_active:
+            subscriber.is_active = True
+            await session.commit()
+        return subscriber
+    
+    subscriber = Subscriber(
+        telegram_id=telegram_id,
+        username=username,
+        full_name=full_name,
+    )
+    session.add(subscriber)
+    await session.commit()
+    await session.refresh(subscriber)
+    return subscriber
+
+
+async def remove_subscriber(session: AsyncSession, telegram_id: int) -> bool:
+    """Отписать пользователя."""
+    subscriber = await session.scalar(select(Subscriber).where(Subscriber.telegram_id == telegram_id))
+    if not subscriber:
+        return False
+    subscriber.is_active = False
+    await session.commit()
+    return True
+
+
+async def get_active_subscribers(session: AsyncSession) -> list[Subscriber]:
+    """Получить всех активных подписчиков."""
+    stmt = select(Subscriber).where(Subscriber.is_active.is_(True)).order_by(Subscriber.subscribed_at)
+    return list((await session.scalars(stmt)).all())
+
+
+async def get_subscribers_count(session: AsyncSession) -> int:
+    """Получить количество активных подписчиков."""
+    stmt = select(func.count()).where(Subscriber.is_active.is_(True))
+    return (await session.execute(stmt)).scalar() or 0
+
+
+async def update_last_mailed(session: AsyncSession, telegram_id: int) -> None:
+    """Обновить время последней рассылки."""
+    await session.execute(
+        update(Subscriber)
+        .where(Subscriber.telegram_id == telegram_id)
+        .values(last_mailed_at=datetime.now(tz=UTC).replace(tzinfo=None))
+    )
+    await session.commit()

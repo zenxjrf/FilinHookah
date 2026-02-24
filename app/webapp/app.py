@@ -1,28 +1,32 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Set
 
-print(">>> BUILD 999 LOADED <<<", flush=True)
-
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.config import get_settings
 from app.db import crud
 from app.db.base import get_session
-from app.db.models import Booking, BookingStatus
+from app.db.models import Booking, BookingStatus, Client, Promotion, Subscriber
+
+print(">>> BUILD 2026-02-25 (PostgreSQL + WebSocket + Broadcast) <<<", flush=True)
 
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="Filin WebApp v2")
+app = FastAPI(title="Filin WebApp v3")
 
 # CORS для Telegram WebApp
 app.add_middleware(
@@ -38,8 +42,92 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 settings = get_settings()
 
+# ==================== LOGGING ====================
+logger = logging.getLogger(__name__)
 
-# ==================== PYDANTIC MODEELS ====================
+# ==================== WEBSOCKET MANAGER ====================
+class ConnectionManager:
+    """Менеджер WebSocket соединений для админ-панели."""
+    
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.add(websocket)
+        logger.info(f"WebSocket connected. Total: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+        logger.info(f"WebSocket disconnected. Total: {len(self.active_connections)}")
+    
+    async def broadcast(self, message: dict):
+        """Отправить сообщение всем подключенным клиентам."""
+        async with self._lock:
+            connections = set(self.active_connections)
+        
+        if not connections:
+            return
+        
+        message_text = json.dumps(message)
+        disconnected = set()
+        
+        for conn in connections:
+            try:
+                await conn.send_text(message_text)
+            except Exception:
+                disconnected.add(conn)
+        
+        # Удаляем отключенные
+        async with self._lock:
+            self.active_connections -= disconnected
+    
+    async def send_booking_update(self, booking_id: int, action: str, status: str = None):
+        """Отправить обновление о брони."""
+        await self.broadcast({
+            "type": "booking_update",
+            "booking_id": booking_id,
+            "action": action,
+            "status": status,
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+
+manager = ConnectionManager()
+
+# ==================== CACHE ====================
+class SimpleCache:
+    """Простое кэширование для оптимизации."""
+    
+    def __init__(self, ttl_seconds: int = 60):
+        self._cache: Dict[str, tuple] = {}
+        self._ttl = ttl_seconds
+    
+    def get(self, key: str):
+        if key in self._cache:
+            value, timestamp = self._cache[key]
+            if datetime.utcnow().timestamp() - timestamp < self._ttl:
+                return value
+            del self._cache[key]
+        return None
+    
+    def set(self, key: str, value):
+        self._cache[key] = (value, datetime.utcnow().timestamp())
+    
+    def invalidate(self, key: str):
+        if key in self._cache:
+            del self._cache[key]
+    
+    def invalidate_pattern(self, pattern: str):
+        """Удалить ключи по паттерну."""
+        for key in list(self._cache.keys()):
+            if key.startswith(pattern):
+                del self._cache[key]
+
+cache = SimpleCache(ttl_seconds=30)
+
+# ==================== PYDANTIC MODELS ====================
 
 class CreateBookingRequest(BaseModel):
     telegram_id: int = Field(ge=1)
@@ -62,89 +150,35 @@ class CancelBookingRequest(BaseModel):
     telegram_id: int = Field(ge=1)
 
 
-class BookTableRequest(BaseModel):
-    table_no: int = Field(ge=1, le=8)
-    datetime: str
-    guests: int = Field(default=2, ge=1, le=20)
-
-
-class OccupyTableRequest(BaseModel):
-    table_no: int = Field(ge=1, le=8)
-
-
-class FreeTableRequest(BaseModel):
-    close_all: bool = False
-
-
-class BlockTableRequest(BaseModel):
-    table_no: int = Field(ge=1, le=8)
-    datetime: str
-
-
 class UpdateBookingStatusRequest(BaseModel):
     status: str = Field(..., pattern=r"^(pending|confirmed|completed|canceled)$")
 
 
-class CreateEventRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=255)
-    datetime: datetime
-    description: str | None = None
+class BroadcastRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    photo_url: str | None = None
 
 
-class UpdateEventRequest(BaseModel):
-    title: str | None = Field(default=None, max_length=255)
-    description: str | None = None
-
-
-class SetDiscountRequest(BaseModel):
-    discount: int = Field(ge=0, le=100000)
-
-
-class CreateBookingRequest(BaseModel):
-    telegram_id: int
-    full_name: str | None = None
-    username: str | None = None
-    phone: str | None = Field(default=None, pattern=r"^\+7\d{10}$")
-    date_time: datetime
-    table_no: int = Field(ge=1, le=30)
-    guests: int = Field(ge=1, le=20)
-    comment: str | None = None
-
-
-class CreateReviewRequest(BaseModel):
-    telegram_id: int
-    rating: int = Field(ge=1, le=5)
-    text: str = Field(min_length=3, max_length=2000)
-
+# ==================== ROUTES ====================
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": "3.0", "db": "postgresql"}
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def root() -> dict[str, str]:
-    """Root endpoint for health check."""
-    return {"status": "ok", "service": "Filin Hookah Bot"}
+    return {"status": "ok", "service": "Filin Hookah Bot v3"}
 
 
 @app.get("/webapp", response_class=HTMLResponse)
 async def webapp_main(request: Request) -> HTMLResponse:
-    """Основной маршрут для Telegram WebApp."""
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={},
-    )
+    return templates.TemplateResponse(request=request, name="index.html", context={})
 
 
 @app.get("/index", response_class=HTMLResponse)
 async def webapp_index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={},
-    )
+    return templates.TemplateResponse(request=request, name="index.html", context={})
 
 
 @app.get("/api/availability")
@@ -153,6 +187,11 @@ async def availability(
     table_no: int = Query(ge=1, le=30),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, list[str]]:
+    cache_key = f"availability:{date_str}:{table_no}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
     try:
         day = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError as exc:
@@ -170,7 +209,10 @@ async def availability(
     )
     items = (await session.scalars(stmt)).all()
     busy_slots = [item.booking_at.strftime("%H:%M") for item in items]
-    return {"busy_slots": busy_slots}
+    
+    result = {"busy_slots": busy_slots}
+    cache.set(cache_key, result)
+    return result
 
 
 @app.get("/api/tables_status")
@@ -178,7 +220,11 @@ async def tables_status(
     date_str: str = Query(alias="date"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, list[dict]]:
-    """Получить статус всех столов на дату."""
+    cache_key = f"tables_status:{date_str}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
     try:
         day = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError as exc:
@@ -186,7 +232,7 @@ async def tables_status(
 
     from_time = datetime.combine(day, datetime.min.time())
     to_time = datetime.combine(day, datetime.max.time())
-    
+
     stmt = select(Booking).where(
         and_(
             Booking.booking_at >= from_time,
@@ -195,8 +241,7 @@ async def tables_status(
         )
     )
     items = (await session.scalars(stmt)).all()
-    
-    # Группируем по столам
+
     tables = {}
     for item in items:
         if item.table_no not in tables:
@@ -205,8 +250,10 @@ async def tables_status(
             "time": item.booking_at.strftime("%H:%M"),
             "is_staff": item.is_staff_booking,
         })
-    
-    return {"tables": tables}
+
+    result = {"tables": tables}
+    cache.set(cache_key, result)
+    return result
 
 
 @app.post("/api/bookings")
@@ -214,9 +261,6 @@ async def create_booking(
     payload: CreateBookingRequest,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, int | str]:
-    import logging
-    from aiogram import Bot
-    
     client = await crud.get_or_create_client(
         session,
         telegram_id=payload.telegram_id,
@@ -236,7 +280,7 @@ async def create_booking(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Отправляем уведомление в чат работников
+    # Уведомление в чат работников
     try:
         from aiogram import Bot
         bot = Bot(token=settings.bot_token)
@@ -266,28 +310,21 @@ async def create_booking(
         )
 
         if settings.workers_chat_id:
-            await bot.send_message(
-                settings.workers_chat_id,
-                admin_text,
-                reply_markup=keyboard,
-            )
+            await bot.send_message(settings.workers_chat_id, admin_text, reply_markup=keyboard)
         else:
             for admin_id in settings.admin_ids:
-                await bot.send_message(
-                    admin_id,
-                    admin_text,
-                    reply_markup=keyboard,
-                )
+                await bot.send_message(admin_id, admin_text, reply_markup=keyboard)
 
         await bot.session.close()
+        
+        # WebSocket уведомление
+        await manager.send_booking_update(booking.id, "created", booking.status)
+        cache.invalidate_pattern("tables_status:")
+        
     except Exception as e:
-        print(f"ERROR sending notification: {e}")
-        # Не прерываем создание брони если уведомление не отправилось
+        logger.error(f"ERROR sending notification: {e}")
 
-    return {
-        "id": booking.id,
-        "status": booking.status,
-    }
+    return {"id": booking.id, "status": booking.status}
 
 
 @app.get("/api/bootstrap")
@@ -297,6 +334,11 @@ async def bootstrap(
     full_name: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
+    cache_key = f"bootstrap:{telegram_id}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
     client = await crud.get_or_create_client(
         session=session,
         telegram_id=telegram_id,
@@ -309,8 +351,7 @@ async def bootstrap(
         default_contacts="📞 7-950-433-34-34\n🌙 Твой идеальный вечер",
     )
     promotions = await crud.get_active_promotions(session)
-    
-    # Всегда показываем акцию "Кальян до 18:00" первой
+
     default_promo = {
         "id": 0,
         "title": "☀️ Кальян до 18:00",
@@ -318,17 +359,15 @@ async def bootstrap(
         "image_url": None,
         "is_default": True
     }
-    
-    # Добавляем другие акции
+
     other_promos = [
         {"id": p.id, "title": p.title, "description": p.description, "image_url": p.image_url, "is_default": False}
         for p in promotions
     ]
-    
+
     promo_payload = [default_promo] + other_promos
     bookings = await crud.list_user_bookings(session, client.id)
-    
-    # Маппинг статусов на русские названия
+
     status_map = {
         "pending": "Ожидает подтверждения",
         "confirmed": "Бронь подтверждена",
@@ -336,11 +375,11 @@ async def bootstrap(
         "canceled": "Отменена",
     }
 
-    return {
+    result = {
         "schedule": "Ежедневно с 14:00 до 2:00",
         "contacts": venue.contacts_text,
         "visits": client.visits,
-        "notes": client.notes,  # Возвращаем notes для личной скидки
+        "notes": client.notes,
         "promotions": promo_payload,
         "bookings": [
             {
@@ -359,6 +398,9 @@ async def bootstrap(
         ],
         "loyalty_rule": "При заказе 5-го кальяна - скидка 50%, при заказе 10-го - бесплатно.",
     }
+    
+    cache.set(cache_key, result)
+    return result
 
 
 @app.post("/api/reviews")
@@ -379,15 +421,20 @@ async def cancel_booking(
     payload: dict,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
-    """Отмена брони гостем."""
     telegram_id = payload.get("telegram_id")
     if not telegram_id:
         raise HTTPException(status_code=400, detail="Telegram ID required")
-    
+
     try:
         booking = await crud.cancel_booking_by_client(session, booking_id, telegram_id)
         if not booking:
             raise HTTPException(status_code=404, detail="Бронь не найдена")
+        
+        # WebSocket уведомление
+        await manager.send_booking_update(booking_id, "canceled", "canceled")
+        cache.invalidate_pattern("tables_status:")
+        cache.invalidate_pattern("bootstrap:")
+        
         return {"status": "canceled", "message": "Бронь отменена"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -397,7 +444,6 @@ async def cancel_booking(
 
 @app.get("/api/admin/stats")
 async def admin_stats(session: AsyncSession = Depends(get_session)):
-    """Статистика для дашборда."""
     stats = await crud.get_today_stats(session)
     return stats
 
@@ -407,19 +453,14 @@ async def admin_tables(
     date: str = Query(...),
     session: AsyncSession = Depends(get_session),
 ):
-    """Статус всех столов на дату."""
-    from datetime import datetime
-    from sqlalchemy import select, and_
-    from app.db.models import Booking, BookingStatus
-    
     try:
         target_date = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format")
-    
+
     from_time = datetime.combine(target_date, datetime.min.time())
     to_time = datetime.combine(target_date, datetime.max.time())
-    
+
     stmt = select(Booking).where(
         and_(
             Booking.booking_at >= from_time,
@@ -427,26 +468,25 @@ async def admin_tables(
         )
     )
     bookings = (await session.scalars(stmt)).all()
-    
+
     tables = {}
     now = datetime.utcnow()
-    
+
     for booking in bookings:
         if booking.table_no not in tables:
             tables[booking.table_no] = []
-        
-        # Определяем статус брони
+
         is_occupied = booking.status == BookingStatus.CONFIRMED.value and booking.booking_at <= now
         is_blocked = booking.is_staff_booking and booking.status == BookingStatus.CANCELED.value
-        
+
         tables[booking.table_no].append({
             "id": booking.id,
             "booking_at": booking.booking_at.isoformat(),
-            "status": booking.status,  # pending, confirmed, completed, canceled
+            "status": booking.status,
             "is_occupied": is_occupied,
             "is_blocked": is_blocked
         })
-    
+
     return {"tables": tables}
 
 
@@ -455,33 +495,22 @@ async def admin_bookings(
     date: str = Query(...),
     session: AsyncSession = Depends(get_session),
 ):
-    """Список броней на дату."""
-    from datetime import datetime
-    from sqlalchemy import select, and_, desc
-    from sqlalchemy.orm import selectinload
-    from app.db.models import Booking, Client
-    
     try:
         target_date = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format")
-    
+
     from_time = datetime.combine(target_date, datetime.min.time())
     to_time = datetime.combine(target_date, datetime.max.time())
-    
-    stmt = (
-        select(Booking)
-        .options(selectinload(Booking.client))
-        .where(
-            and_(
-                Booking.booking_at >= from_time,
-                Booking.booking_at <= to_time,
-            )
+
+    stmt = select(Booking).order_by(desc(Booking.booking_at)).where(
+        and_(
+            Booking.booking_at >= from_time,
+            Booking.booking_at <= to_time,
         )
-        .order_by(desc(Booking.booking_at))
     )
     bookings = (await session.scalars(stmt)).all()
-    
+
     return [
         {
             "id": b.id,
@@ -489,7 +518,6 @@ async def admin_bookings(
             "table_no": b.table_no,
             "guests": b.guests,
             "status": b.status,
-            "client_name": b.client.full_name if b.client else None,
         }
         for b in bookings
     ]
@@ -501,432 +529,147 @@ async def update_booking_status(
     payload: dict,
     session: AsyncSession = Depends(get_session),
 ):
-    """Обновление статуса брони."""
-    from app.db import crud as db_crud
-    
     status = payload.get("status")
     if not status:
         raise HTTPException(status_code=400, detail="Status required")
-    
+
     booking = await session.get(Booking, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Бронь не найдена")
-    
+
+    old_status = booking.status
     booking.status = status
     await session.commit()
-    
-    return {"status": "ok"}
+    await session.refresh(booking)
+
+    # WebSocket уведомление об изменении
+    await manager.send_booking_update(booking_id, "status_changed", status)
+    cache.invalidate_pattern("tables_status:")
+    cache.invalidate_pattern("admin:stats")
+
+    return {"status": "ok", "booking_id": booking_id, "old_status": old_status, "new_status": status}
 
 
-@app.get("/api/admin/events")
-async def get_events(session: AsyncSession = Depends(get_session)):
-    """Получить список событий."""
-    from sqlalchemy import select, desc
-    from app.db.models import Promotion
-    
-    stmt = select(Promotion).order_by(desc(Promotion.created_at)).limit(20)
-    events = (await session.scalars(stmt)).all()
-    
-    return [
-        {
-            "id": e.id,
-            "title": e.title,
-            "description": e.description,
-            "datetime": e.created_at.isoformat(),
-        }
-        for e in events
-    ]
+# ==================== BROADCAST API ====================
+
+@app.get("/api/admin/broadcast/subscribers")
+async def get_subscribers_count(session: AsyncSession = Depends(get_session)):
+    count = await crud.get_subscribers_count(session)
+    return {"subscribers_count": count}
 
 
-@app.post("/api/admin/events")
-async def create_event(
-    payload: dict,
+@app.post("/api/admin/broadcast")
+async def broadcast_message(
+    payload: BroadcastRequest,
     session: AsyncSession = Depends(get_session),
-):
-    """Создать событие."""
-    from app.db.models import Promotion
+) -> dict[str, int]:
+    """Отправить рассылку всем активным подписчикам."""
+    from aiogram import Bot
     
-    event = Promotion(
-        title=payload.get("title", "Событие"),
-        description=payload.get("description", ""),
-        is_active=True,
-    )
+    bot = Bot(token=settings.bot_token)
+    subscribers = await crud.get_active_subscribers(session)
     
-    session.add(event)
-    await session.commit()
-    await session.refresh(event)
+    success_count = 0
+    fail_count = 0
     
-    return {"id": event.id, "status": "created"}
-
-
-@app.put("/api/admin/events/{event_id}")
-async def update_event(
-    event_id: int,
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Редактировать событие."""
-    from app.db.models import Promotion
-    
-    event = await session.get(Promotion, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Событие не найдено")
-    
-    event.title = payload.get("title", event.title)
-    event.description = payload.get("description", event.description)
-    
-    await session.commit()
-    
-    return {"id": event.id, "status": "updated"}
-
-
-@app.delete("/api/admin/events/{event_id}")
-async def delete_event(
-    event_id: int,
-    session: AsyncSession = Depends(get_session),
-):
-    """Удалить событие."""
-    from app.db.models import Promotion
-    
-    event = await session.get(Promotion, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Событие не найдено")
-    
-    await session.delete(event)
-    await session.commit()
-    
-    return {"status": "deleted"}
-
-
-@app.get("/api/admin/guests")
-async def get_guests(session: AsyncSession = Depends(get_session)):
-    """Получить список гостей."""
-    from sqlalchemy import select, desc
-    from app.db.models import Client
-    
-    stmt = select(Client).order_by(desc(Client.visits)).limit(100)
-    guests = (await session.scalars(stmt)).all()
-    
-    return [
-        {
-            "id": g.id,
-            "name": g.full_name,
-            "phone": g.phone_hash,
-            "visits": g.visits,
-        }
-        for g in guests
-    ]
-
-
-@app.get("/api/admin/guests/{client_id}/notes")
-async def update_guest_notes(
-    client_id: int,
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Обновить заметку о госте."""
-    from app.db.models import Client
-    
-    client = await session.get(Client, client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Клиент не найден")
-    
-    client.notes = payload.get("notes", "")
-    await session.commit()
-    
-    return {"status": "ok"}
-
-
-@app.get("/admin")
-async def admin_panel():
-    """Админ-панель."""
-    return templates.TemplateResponse("admin.html", {"request": {}})
-
-
-@app.post("/api/admin/tables/block")
-async def block_table(
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Заблокировать стол."""
-    from app.db.models import Booking, Client
-    
-    table_no = payload.get("table_no")
-    datetime_str = payload.get("datetime")
-    
-    if not table_no or not datetime_str:
-        raise HTTPException(status_code=400, detail="table_no and datetime required")
-    
-    from datetime import datetime
-    try:
-        booking_at = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid datetime format")
-    
-    # Создаём технического клиента
-    client = await session.scalar(
-        select(Client).where(Client.telegram_id == 999999999)
-    )
-    if not client:
-        client = Client(
-            telegram_id=999999999,
-            username="staff_block",
-            full_name="Техническая бронь",
-        )
-        session.add(client)
-        await session.flush()
-    
-    # Создаём бронь-заглушку
-    booking = Booking(
-        client_id=client.id,
-        booking_at=booking_at,
-        table_no=table_no,
-        guests=0,
-        comment="СТОЛ ЗАБЛОКИРОВАН ПЕРСОНАЛОМ",
-        status="canceled",  # Отменённая бронь блокирует стол
-        is_staff_booking=True,
-    )
-    
-    session.add(booking)
-    await session.commit()
-    
-    return {"status": "blocked", "table_no": table_no}
-
-
-@app.post("/api/admin/tables/{table_no}/unblock")
-async def unblock_table(
-    table_no: int,
-    session: AsyncSession = Depends(get_session),
-):
-    """Освободить стол (удалить блокировки)."""
-    from app.db.models import Booking
-    
-    # Находим все блокировки этого стола
-    stmt = select(Booking).where(
-        and_(
-            Booking.table_no == table_no,
-            Booking.is_staff_booking == True,
-            Booking.status == "canceled",
-        )
-    )
-    bookings = (await session.scalars(stmt)).all()
-    
-    for booking in bookings:
-        await session.delete(booking)
-    
-    await session.commit()
-    
-    return {"status": "unblocked", "table_no": table_no}
-
-
-@app.post("/api/admin/guests/{client_id}/discount")
-async def set_guest_discount(
-    client_id: int,
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Установить личную скидку гостю (в рублях)."""
-    from app.db.models import Client
-    
-    discount = payload.get("discount", 0)
-    
-    client = await session.get(Client, client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Клиент не найден")
-    
-    # Сохраняем скидку в notes в формате JSON
-    import json
-    notes_data = {}
-    if client.notes:
+    for sub in subscribers:
         try:
-            notes_data = json.loads(client.notes)
-        except:
-            notes_data = {}
-    
-    notes_data["personal_discount"] = discount
-    client.notes = json.dumps(notes_data, ensure_ascii=False)
-    
-    await session.commit()
-    
-    return {"status": "ok", "discount": discount}
-
-
-@app.post("/api/admin/tables/book")
-async def book_table(
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Забронировать стол (гости придут)."""
-    from app.db.models import Booking, Client
-    from datetime import datetime
-    
-    table_no = payload.get("table_no")
-    datetime_str = payload.get("datetime")
-    guests = payload.get("guests", 2)
-    
-    if not table_no or not datetime_str:
-        raise HTTPException(status_code=400, detail="table_no and datetime required")
-    
-    try:
-        booking_at = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid datetime format")
-    
-    # Создаём техническую бронь
-    client = await session.scalar(select(Client).where(Client.telegram_id == 999999998))
-    if not client:
-        client = Client(
-            telegram_id=999999998,
-            username="staff_booking",
-            full_name="Бронь персонала",
-        )
-        session.add(client)
-        await session.flush()
-    
-    booking = Booking(
-        client_id=client.id,
-        booking_at=booking_at,
-        table_no=table_no,
-        guests=guests,
-        comment="Бронь через админ-панель",
-        status="confirmed",
-        is_staff_booking=True,
-    )
-    
-    session.add(booking)
-    await session.commit()
-    
-    return {"status": "booked", "table_no": table_no, "booking_id": booking.id}
-
-
-@app.post("/api/admin/tables/occupy")
-async def occupy_table(
-    payload: dict,
-    session: AsyncSession = Depends(get_session),
-):
-    """Отметить стол как занятый (гости без брони)."""
-    from app.db.models import Booking, Client, BookingStatus
-    from datetime import datetime
-    
-    table_no = payload.get("table_no")
-    
-    if not table_no:
-        raise HTTPException(status_code=400, detail="table_no required")
-    
-    # Создаём техническую бронь на текущее время
-    client = await session.scalar(select(Client).where(Client.telegram_id == 999999997))
-    if not client:
-        client = Client(
-            telegram_id=999999997,
-            username="walk_in",
-            full_name="Гости без брони",
-        )
-        session.add(client)
-        await session.flush()
-    
-    booking = Booking(
-        client_id=client.id,
-        booking_at=datetime.utcnow(),
-        table_no=table_no,
-        guests=2,
-        comment="Гости без брони (walk-in)",
-        status="confirmed",
-        is_staff_booking=True,
-    )
-    
-    session.add(booking)
-    await session.commit()
-    
-    return {"status": "occupied", "table_no": table_no}
-
-
-@app.post("/api/admin/tables/{table_no}/free")
-async def free_table(
-    table_no: int,
-    payload: dict = {},
-    session: AsyncSession = Depends(get_session),
-):
-    """Освободить стол (гости ушли)."""
-    from app.db.models import Booking
-    from datetime import datetime, timedelta
-    
-    close_all = payload.get("close_all", False)
-    
-    # Находим активные брони этого стола
-    now = datetime.utcnow()
-    today_start = datetime.combine(now.date(), datetime.min.time())
-    
-    stmt = select(Booking).where(
-        and_(
-            Booking.table_no == table_no,
-            Booking.booking_at >= today_start,
-            Booking.status.in_(["pending", "confirmed"]),
-        )
-    )
-    bookings = (await session.scalars(stmt)).all()
-    
-    for booking in bookings:
-        if close_all:
-            # Гости ушли - закрываем все брони
-            booking.status = "completed"
-        else:
-            # Отменяем будущие брони
-            if booking.booking_at > now:
-                booking.status = "canceled"
+            if payload.photo_url:
+                await bot.send_photo(
+                    chat_id=sub.telegram_id,
+                    photo=payload.photo_url,
+                    caption=payload.message,
+                    parse_mode="HTML",
+                )
             else:
-                booking.status = "completed"
+                await bot.send_message(
+                    chat_id=sub.telegram_id,
+                    text=payload.message,
+                    parse_mode="HTML",
+                )
+            await crud.update_last_mailed(session, sub.telegram_id)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to send to {sub.telegram_id}: {e}")
+            fail_count += 1
+        await asyncio.sleep(0.05)  # Anti-flood
     
-    await session.commit()
+    await bot.session.close()
+    
+    return {
+        "sent": success_count,
+        "failed": fail_count,
+        "total": len(subscribers),
+    }
 
-    return {"status": "freed", "table_no": table_no}
+
+# ==================== WEBSOCKET ENDPOINT ====================
+
+@app.websocket("/ws/admin")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint для админ-панели."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Получаем данные от клиента (можно использовать для команд)
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
+
+
+# ==================== ADMIN HTML ====================
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_panel():
+    return templates.TemplateResponse("admin.html", {"request": {}})
 
 
 # ==================== TELEGRAM WEBHOOK ====================
 
-# Импортируем функции для создания глобальных bot и dispatcher
-from app.bot.dispatcher import get_bot, get_dispatcher, init_database
+from app.bot.dispatcher import get_bot, get_dispatcher
 
-# Получаем глобальные bot и dispatcher (singleton)
 _webhook_bot = get_bot()
 _webhook_dp = get_dispatcher()
 
 
 @app.on_event("startup")
 async def on_startup():
-    """Создать таблицы БД и установить webhook при старте приложения."""
+    """Создать таблицы БД и установить webhook при старте."""
     import os
     from app.db.base import engine, Base
     from app.db import models  # noqa: F401
-    
-    # Создаём таблицы БД
-    print("[STARTUP] Creating database tables...", flush=True)
+
+    logger.info("Creating database tables...")
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("[STARTUP] Database tables created!", flush=True)
+        logger.info("Database tables created!")
     except Exception as e:
-        print(f"[STARTUP] Database error: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-    
+        logger.error(f"Database error: {e}")
+
     # Установка webhook
     webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filinhookah-1.onrender.com")
-    # Убираем /webapp из webhook_url, так как webhook должен быть на /api/telegram/webhook
     base_url = webapp_url.replace("/webapp", "") if webapp_url.endswith("/webapp") else webapp_url
     webhook_url = f"{base_url}/api/telegram/webhook"
-    
-    # URL для WebApp (с /webapp)
     webapp_full_url = webapp_url if webapp_url.endswith("/webapp") else f"{webapp_url}/webapp"
 
-    print(f"[STARTUP] Setting webhook to: {webhook_url}", flush=True)
+    logger.info(f"Setting webhook to: {webhook_url}")
     try:
         await _webhook_bot.set_webhook(
             url=webhook_url,
             allowed_updates=["message", "callback_query", "pre_checkout_query"],
         )
-        print(f"[STARTUP] Webhook set successfully!", flush=True)
-        
-        # Устанавливаем Menu Button
+        logger.info("Webhook set successfully!")
+
         from aiogram.types import MenuButtonWebApp, WebAppInfo
         await _webhook_bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(
@@ -934,37 +677,36 @@ async def on_startup():
                 web_app=WebAppInfo(url=webapp_full_url),
             )
         )
-        print(f"[STARTUP] Menu Button set to: {webapp_full_url}", flush=True)
+        logger.info(f"Menu Button set to: {webapp_full_url}")
     except Exception as e:
-        print(f"[STARTUP] ERROR setting webhook/Menu Button: {e}", flush=True)
+        logger.error(f"ERROR setting webhook/Menu Button: {e}")
 
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    """Закрыть бота при остановке приложения."""
-    print("[SHUTDOWN] Closing bot...", flush=True)
+    """Закрыть бота и соединения при остановке."""
+    logger.info("Closing bot session...")
     await _webhook_bot.session.close()
+    logger.info("Disposing database engine...")
+    from app.db.base import dispose_engine
+    await dispose_engine()
+    logger.info("Shutdown complete")
 
 
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
-    """Обработка обновлений от Telegram (webhook)."""
+    """Обработка обновлений от Telegram."""
     from aiogram.types import Update
-    
+
     try:
         update_data = await request.json()
-        print(f"[WEBHOOK] Received update: {update_data}", flush=True)
-
-        # Правильное создание Update для aiogram 3.x
         update = Update.model_validate(update_data)
-        print(f"[WEBHOOK] Processing update {update.update_id}...", flush=True)
-
+        
         result = await _webhook_dp.feed_update(_webhook_bot, update)
-        print(f"[WEBHOOK] Update processed, result: {result}", flush=True)
-
+        
         return {"ok": True}
     except Exception as e:
-        print(f"[WEBHOOK] ERROR: {e}", flush=True)
+        logger.error(f"Webhook error: {e}")
         import traceback
         traceback.print_exc()
         return {"ok": False, "error": str(e)}

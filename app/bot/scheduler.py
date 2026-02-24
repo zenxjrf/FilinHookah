@@ -115,15 +115,15 @@ def setup_scheduler(bot: Bot, session_factory: async_sessionmaker) -> AsyncIOSch
                         Booking.booking_at >= target_time,
                         Booking.booking_at <= target_time_end,
                         Booking.status.in_([BookingStatus.PENDING.value, BookingStatus.CONFIRMED.value]),
+                        Booking.reminder_1h_sent.is_(False),  # Проверяем флаг
                     )
                 )
             )
             bookings = (await session.scalars(stmt)).all()
 
             for booking in bookings:
-                # Проверяем, не отправляли ли уже напоминание за 1 час
-                if not hasattr(booking, '_reminder_1h_sent'):
-                    await send_reminder(booking, hours_before=1)
+                await send_reminder(booking, hours_before=1)
+                booking.reminder_1h_sent = True  # Помечаем что напоминание отправлено
 
             await session.commit()
 
