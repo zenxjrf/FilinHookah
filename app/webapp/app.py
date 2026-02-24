@@ -122,7 +122,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root() -> dict[str, str]:
     """Root endpoint for health check."""
     return {"status": "ok", "service": "Filin Hookah Bot"}

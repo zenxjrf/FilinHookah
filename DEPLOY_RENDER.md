@@ -29,7 +29,7 @@ git push origin main
 | **Root Directory** | (оставь пустым) |
 | **Runtime** | `Python 3` |
 | **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `uvicorn app.webapp.app:app --host 0.0.0.0 --port 10000` |
+| **Start Command** | `uvicorn app.webapp.app:app --host 0.0.0.0 --port $PORT` |
 | **Instance Type** | `Free` |
 
 #### Шаг 4: Добавь переменные окружения
@@ -163,8 +163,8 @@ Render Dashboard → **Metrics**
 
 | Проблема | Решение |
 |----------|---------|
-| **404 на /webapp** | Проверь Start Command: `uvicorn app.webapp.app:app --host 0.0.0.0 --port 10000` |
-| **Не грузится статика** | Проверь что файлы в `app/webapp/static/` |
+| **404 на /webapp** | Проверь Start Command: `uvicorn app.webapp.app:app --host 0.0.0.0 --port $PORT` |
+| **No open ports detected** | Используй `$PORT` вместо фиксированного порта |
 | **500 ошибка** | Смотри логи в Render Dashboard |
 | **Бот не отвечает** | Проверь BOT_TOKEN в переменных |
 | **WebApp пустой** | Проверь консоль браузера (F12) на ошибки JS |
