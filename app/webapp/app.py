@@ -871,22 +871,21 @@ async def free_table(
 
 # ==================== TELEGRAM WEBHOOK ====================
 
-@app.get("/test")
-async def test_endpoint() -> dict:
-    """Test endpoint to verify app is working."""
-    return {"status": "ok", "message": "Webhook endpoint is working"}
+# Глобальные bot и dispatcher для webhook
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from app.bot.dispatcher import create_dispatcher, create_bot
+
+_webhook_bot = create_bot()
+_webhook_dp = create_dispatcher()
 
 
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
     """Обработка обновлений от Telegram (webhook)."""
-    from aiogram import Bot
     from aiogram.types import Update
-    from app.bot.dispatcher import create_dispatcher, create_bot
     
-    bot = create_bot()
-    dp = create_dispatcher()
-
     try:
         update_data = await request.json()
         print(f"[WEBHOOK] Received update: {update_data}", flush=True)
@@ -895,7 +894,7 @@ async def telegram_webhook(request: Request) -> dict:
         update = Update.model_validate(update_data)
         print(f"[WEBHOOK] Processing update {update.update_id}...", flush=True)
 
-        result = await dp.feed_update(bot, update)
+        result = await _webhook_dp.feed_update(_webhook_bot, update)
         print(f"[WEBHOOK] Update processed, result: {result}", flush=True)
 
         return {"ok": True}
@@ -904,5 +903,3 @@ async def telegram_webhook(request: Request) -> dict:
         import traceback
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
-    finally:
-        await bot.session.close()
