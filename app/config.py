@@ -42,7 +42,7 @@ def get_settings() -> Settings:
 
     return Settings(
         bot_token=_clean_env(os.getenv("BOT_TOKEN", "")),
-        db_url=_clean_env(os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./filin.db")),
+        db_url=_clean_env(os.getenv("DATABASE_URL", "sqlite+aiosqlite:///filin.db")),
         webapp_url=_clean_env(os.getenv("WEBAPP_URL", "http://localhost:8000")),
         admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
         workers_chat_id=workers_chat_id,

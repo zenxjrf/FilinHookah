@@ -883,8 +883,19 @@ _webhook_dp = get_dispatcher()
 
 @app.on_event("startup")
 async def on_startup():
-    """Установить webhook при старте приложения."""
+    """Установить webhook и инициализировать БД при старте приложения."""
     import os
+    from app.db.base import init_db
+    
+    # Инициализация БД
+    print("[STARTUP] Initializing database...", flush=True)
+    try:
+        await init_db()
+        print("[STARTUP] Database initialized!", flush=True)
+    except Exception as e:
+        print(f"[STARTUP] Database init error: {e}", flush=True)
+    
+    # Установка webhook
     webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filin-hookah.onrender.com")
     webhook_url = f"{webapp_url}/api/telegram/webhook"
     
