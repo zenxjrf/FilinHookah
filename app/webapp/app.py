@@ -883,10 +883,7 @@ async def telegram_webhook(request: Request) -> dict:
     from aiogram import Bot
     from aiogram.types import Update
     from app.bot.dispatcher import create_dispatcher, create_bot
-    import logging
     
-    logger = logging.getLogger("telegram_webhook")
-
     bot = create_bot()
     dp = create_dispatcher()
 
@@ -894,10 +891,10 @@ async def telegram_webhook(request: Request) -> dict:
         update_data = await request.json()
         print(f"[WEBHOOK] Received update: {update_data}", flush=True)
 
-        update = Update(**update_data)
+        # Правильное создание Update для aiogram 3.x
+        update = Update.model_validate(update_data)
         print(f"[WEBHOOK] Processing update {update.update_id}...", flush=True)
 
-        # Используем простой метод обработки
         result = await dp.feed_update(bot, update)
         print(f"[WEBHOOK] Update processed, result: {result}", flush=True)
 
