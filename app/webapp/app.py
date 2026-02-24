@@ -874,31 +874,16 @@ async def test_endpoint() -> dict:
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
     """Обработка обновлений от Telegram (webhook)."""
-    from aiogram import Bot, Dispatcher
+    from aiogram import Bot
     from aiogram.types import Update
-    from aiogram.enums import ParseMode
-    from aiogram.client.default import DefaultBotProperties
-    from app.bot.middleware.rate_limit import RateLimitMiddleware
-    from app.db.base import session_factory
+    from app.bot.dispatcher import create_dispatcher, create_bot
     import logging
     
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger("telegram_webhook")
 
-    bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
-
-    # Middleware
-    dp.message.middleware(RateLimitMiddleware())
-    dp.callback_query.middleware(RateLimitMiddleware())
-
-    # Регистрируем все обработчики
-    logger.info("Registering handlers...")
-    dp.include_router(register_common_handlers(session_factory, settings))
-    dp.include_router(register_webapp_handlers(session_factory, settings))
-    dp.include_router(register_booking_actions(session_factory, settings))
-    dp.include_router(register_admin_dashboard(session_factory, settings))
-    dp.include_router(register_admin_handlers(session_factory, settings))
+    bot = create_bot()
+    dp = create_dispatcher()
 
     try:
         update_data = await request.json()
@@ -906,9 +891,11 @@ async def telegram_webhook(request: Request) -> dict:
         
         # Проверяем тип обновления
         if "message" in update_data:
-            logger.info(f"Message from {update_data['message'].get('from', {}).get('id')}: {update_data['message'].get('text')}")
+            msg = update_data["message"]
+            logger.info(f"Message from {msg.get('from', {}).get('id')}: {msg.get('text')}")
         elif "callback_query" in update_data:
-            logger.info(f"Callback from {update_data['callback_query'].get('from', {}).get('id')}")
+            cb = update_data["callback_query"]
+            logger.info(f"Callback from {cb.get('from', {}).get('id')}: {cb.get('data')}")
         
         update = Update(**update_data)
         logger.info(f"Processing update {update.update_id}...")
