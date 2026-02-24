@@ -38,7 +38,7 @@ git push origin main
 
 ```
 BOT_TOKEN=8306362120:AAHXCXOXFk_Eam6gbfnwK0f0vTyI16RNFZo
-WEBAPP_URL=https://filin-webapp.onrender.com
+WEBAPP_URL=https://filinhookah-1.onrender.com/webapp
 ADMIN_IDS=1698158035
 WORKERS_CHAT_ID=-1003748695791
 DATABASE_URL=sqlite+aiosqlite:///./filin.db
@@ -46,6 +46,8 @@ LOG_PATH=logs.txt
 DEFAULT_SCHEDULE=Ежедневно с 14:00 до 2:00
 DEFAULT_CONTACTS=Phone: +7 (000) 000-00-00\nAddress: Example street, 1
 ```
+
+**Важно:** `WEBAPP_URL` должен заканчиваться на `/webapp`!
 
 #### Шаг 5: Deploy!
 
@@ -116,17 +118,19 @@ https://filin-webapp.onrender.com/health
 
 ## 📱 Настройка Telegram бота
 
-### 1. Обнови WEBAPP_URL
+### 1. Обнови переменную WEBAPP_URL
 
 После деплоя Render выдаст URL вида:
 ```
-https://filin-webapp.onrender.com
+https://filinhookah-1.onrender.com
 ```
 
 Обнови переменную `WEBAPP_URL` в Render Dashboard:
 ```
-WEBAPP_URL=https://filin-webapp.onrender.com/webapp
+WEBAPP_URL=https://filinhookah-1.onrender.com/webapp
 ```
+
+**Важно:** URL должен заканчиваться на `/webapp`!
 
 ### 2. Перезапусти сервис
 
@@ -142,7 +146,11 @@ git push
 
 1. Открой @BotFather
 2. `/mybots` → FilinHookah_bot
-3. **Menu Button** → отправь URL: `https://filin-webapp.onrender.com/webapp`
+3. **Menu Button** → отправь URL: `https://filinhookah-1.onrender.com/webapp`
+
+### 4. Проверь кнопку в боте
+
+В Telegram нажми `/start` — кнопка **"Открыть мини-приложение"** или **"Забронировать"** должна открыть WebApp.
 
 ---
 

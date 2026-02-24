@@ -128,8 +128,9 @@ async def root() -> dict[str, str]:
     return {"status": "ok", "service": "Filin Hookah Bot"}
 
 
-@app.get("/index", response_class=HTMLResponse)
-async def webapp_index(request: Request) -> HTMLResponse:
+@app.get("/webapp", response_class=HTMLResponse)
+async def webapp_main(request: Request) -> HTMLResponse:
+    """Основной маршрут для Telegram WebApp."""
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -137,9 +138,8 @@ async def webapp_index(request: Request) -> HTMLResponse:
     )
 
 
-@app.get("/webapp", response_class=HTMLResponse)
-async def webapp_main(request: Request) -> HTMLResponse:
-    """Основной маршрут для Telegram WebApp."""
+@app.get("/index", response_class=HTMLResponse)
+async def webapp_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -911,7 +911,9 @@ async def on_startup():
     
     # Установка webhook
     webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filinhookah-1.onrender.com")
-    webhook_url = f"{webapp_url}/api/telegram/webhook"
+    # Убираем /webapp из webhook_url, так как webhook должен быть на /api/telegram/webhook
+    base_url = webapp_url.replace("/webapp", "") if webapp_url.endswith("/webapp") else webapp_url
+    webhook_url = f"{base_url}/api/telegram/webhook"
     
     print(f"[STARTUP] Setting webhook to: {webhook_url}", flush=True)
     try:
