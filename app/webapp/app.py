@@ -889,23 +889,18 @@ async def telegram_webhook(request: Request) -> dict:
         update_data = await request.json()
         logger.info(f"Received update: {update_data}")
         
-        # Проверяем тип обновления
-        if "message" in update_data:
-            msg = update_data["message"]
-            logger.info(f"Message from {msg.get('from', {}).get('id')}: {msg.get('text')}")
-        elif "callback_query" in update_data:
-            cb = update_data["callback_query"]
-            logger.info(f"Callback from {cb.get('from', {}).get('id')}: {cb.get('data')}")
-        
         update = Update(**update_data)
         logger.info(f"Processing update {update.update_id}...")
         
-        result = await dp.feed_webhook_update(bot, update)
+        # Используем простой метод обработки
+        result = await dp.feed_update(bot, update)
         logger.info(f"Update processed, result: {result}")
         
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
     finally:
         await bot.session.close()
