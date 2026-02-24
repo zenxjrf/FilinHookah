@@ -21,4 +21,4 @@ echo "setup_webhook.py exited with code: $WEBHOOK_EXIT"
 
 # Запускаем WebApp (он будет обрабатывать webhook от Telegram)
 echo "Starting WebApp server..."
-python -m app.run_webapp
+exec python -m app.run_webapp
