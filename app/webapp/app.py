@@ -871,8 +871,12 @@ async def free_table(
 
 # ==================== TELEGRAM WEBHOOK ====================
 
-# Импортируем глобальные bot и dispatcher
-from app.bot.dispatcher import _webhook_bot, _webhook_dp
+# Импортируем функции для создания глобальных bot и dispatcher
+from app.bot.dispatcher import get_bot, get_dispatcher
+
+# Получаем глобальные bot и dispatcher (singleton)
+_webhook_bot = get_bot()
+_webhook_dp = get_dispatcher()
 
 
 @app.on_event("startup")
