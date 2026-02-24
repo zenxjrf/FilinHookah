@@ -885,15 +885,19 @@ _webhook_dp = get_dispatcher()
 async def on_startup():
     """Установить webhook и инициализировать БД при старте приложения."""
     import os
-    from app.db.base import init_db
+    from app.db.base import init_db, engine, Base
+    from app.db import models  # noqa: F401
     
     # Инициализация БД
     print("[STARTUP] Initializing database...", flush=True)
     try:
-        await init_db()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         print("[STARTUP] Database initialized!", flush=True)
     except Exception as e:
         print(f"[STARTUP] Database init error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
     
     # Установка webhook
     webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filin-hookah.onrender.com")
