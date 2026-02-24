@@ -871,14 +871,8 @@ async def free_table(
 
 # ==================== TELEGRAM WEBHOOK ====================
 
-# Глобальные bot и dispatcher для webhook
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from app.bot.dispatcher import create_dispatcher, create_bot
-
-_webhook_bot = create_bot()
-_webhook_dp = create_dispatcher()
+# Импортируем глобальные bot и dispatcher
+from app.bot.dispatcher import _webhook_bot, _webhook_dp
 
 
 @app.on_event("startup")
