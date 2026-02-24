@@ -881,6 +881,31 @@ _webhook_bot = create_bot()
 _webhook_dp = create_dispatcher()
 
 
+@app.on_event("startup")
+async def on_startup():
+    """Установить webhook при старте приложения."""
+    import os
+    webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filin-hookah.onrender.com")
+    webhook_url = f"{webapp_url}/api/telegram/webhook"
+    
+    print(f"[STARTUP] Setting webhook to: {webhook_url}", flush=True)
+    try:
+        await _webhook_bot.set_webhook(
+            url=webhook_url,
+            allowed_updates=["message", "callback_query", "pre_checkout_query"],
+        )
+        print(f"[STARTUP] Webhook set successfully!", flush=True)
+    except Exception as e:
+        print(f"[STARTUP] ERROR setting webhook: {e}", flush=True)
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """Закрыть бота при остановке приложения."""
+    print("[SHUTDOWN] Closing bot...", flush=True)
+    await _webhook_bot.session.close()
+
+
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
     """Обработка обновлений от Telegram (webhook)."""
