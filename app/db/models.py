@@ -9,6 +9,34 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
+# Автоматическое создание таблиц при импорте моделей
+_tables_created = False
+
+
+def ensure_tables_created():
+    """Создать таблицы БД если ещё не созданы."""
+    global _tables_created
+    if not _tables_created:
+        import asyncio
+        from app.db.base import engine
+        
+        async def _create():
+            global _tables_created
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            _tables_created = True
+            print("[DB] Tables created at import time!", flush=True)
+        
+        try:
+            asyncio.run(_create())
+        except Exception as e:
+            print(f"[DB] Table creation error (will retry later): {e}", flush=True)
+
+
+# Вызываем при импорте
+ensure_tables_created()
+
+
 class BookingStatus(StrEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
