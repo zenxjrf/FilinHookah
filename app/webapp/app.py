@@ -883,15 +883,24 @@ _webhook_dp = get_dispatcher()
 
 @app.on_event("startup")
 async def on_startup():
-    """Установить webhook и инициализировать БД при старте приложения."""
+    """Создать таблицы БД и установить webhook при старте приложения."""
     import os
+    from app.db.base import engine, Base
+    from app.db import models  # noqa: F401
     
-    # Инициализация БД ПЕРВЫМ ДЕЛОМ!
-    print("[STARTUP] Initializing database...", flush=True)
-    await init_database()
+    # Создаём таблицы БД
+    print("[STARTUP] Creating database tables...", flush=True)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("[STARTUP] Database tables created!", flush=True)
+    except Exception as e:
+        print(f"[STARTUP] Database error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
     
     # Установка webhook
-    webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filin-hookah.onrender.com")
+    webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filinhookah-1.onrender.com")
     webhook_url = f"{webapp_url}/api/telegram/webhook"
     
     print(f"[STARTUP] Setting webhook to: {webhook_url}", flush=True)
