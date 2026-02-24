@@ -885,7 +885,6 @@ async def telegram_webhook(request: Request) -> dict:
     from app.bot.dispatcher import create_dispatcher, create_bot
     import logging
     
-    logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger("telegram_webhook")
 
     bot = create_bot()
@@ -893,18 +892,18 @@ async def telegram_webhook(request: Request) -> dict:
 
     try:
         update_data = await request.json()
-        logger.info(f"Received update: {update_data}")
-        
+        print(f"[WEBHOOK] Received update: {update_data}", flush=True)
+
         update = Update(**update_data)
-        logger.info(f"Processing update {update.update_id}...")
-        
+        print(f"[WEBHOOK] Processing update {update.update_id}...", flush=True)
+
         # Используем простой метод обработки
         result = await dp.feed_update(bot, update)
-        logger.info(f"Update processed, result: {result}")
-        
+        print(f"[WEBHOOK] Update processed, result: {result}", flush=True)
+
         return {"ok": True}
     except Exception as e:
-        logger.error(f"Webhook error: {e}", exc_info=True)
+        print(f"[WEBHOOK] ERROR: {e}", flush=True)
         import traceback
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
