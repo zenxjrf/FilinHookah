@@ -120,7 +120,13 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
+async def root() -> dict[str, str]:
+    """Root endpoint for health check."""
+    return {"status": "ok", "service": "Filin Hookah Bot"}
+
+
+@app.get("/index", response_class=HTMLResponse)
 async def webapp_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
