@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 
 from app.bot.handlers.admin import register_admin_handlers
 from app.bot.handlers.admin_dashboard import register_admin_dashboard
@@ -23,7 +24,7 @@ logger = get_logger(__name__)
 
 
 async def set_bot_commands(bot: Bot) -> None:
-    """Установка команд бота."""
+    """Установка команд бота и Menu Button."""
     commands = [
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="menu", description="Показать меню"),
@@ -31,6 +32,19 @@ async def set_bot_commands(bot: Bot) -> None:
         BotCommand(command="help", description="Помощь"),
     ]
     await bot.set_my_commands(commands)
+    
+    # Устанавливаем Menu Button (кнопка OPEN в списке чатов)
+    webapp_url = os.getenv("WEBAPP_URL", "https://filinhookah-1.onrender.com/webapp")
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Открыть мини-приложение",
+                web_app=WebAppInfo(url=webapp_url),
+            )
+        )
+        logger.info("Menu Button установлен: %s", webapp_url)
+    except Exception as e:
+        logger.warning("Не удалось установить Menu Button: %s", e)
 
 
 async def set_webhook(bot: Bot, webhook_url: str) -> None:

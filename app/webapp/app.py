@@ -915,6 +915,9 @@ async def on_startup():
     base_url = webapp_url.replace("/webapp", "") if webapp_url.endswith("/webapp") else webapp_url
     webhook_url = f"{base_url}/api/telegram/webhook"
     
+    # URL для WebApp (с /webapp)
+    webapp_full_url = webapp_url if webapp_url.endswith("/webapp") else f"{webapp_url}/webapp"
+
     print(f"[STARTUP] Setting webhook to: {webhook_url}", flush=True)
     try:
         await _webhook_bot.set_webhook(
@@ -922,8 +925,18 @@ async def on_startup():
             allowed_updates=["message", "callback_query", "pre_checkout_query"],
         )
         print(f"[STARTUP] Webhook set successfully!", flush=True)
+        
+        # Устанавливаем Menu Button
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        await _webhook_bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Открыть мини-приложение",
+                web_app=WebAppInfo(url=webapp_full_url),
+            )
+        )
+        print(f"[STARTUP] Menu Button set to: {webapp_full_url}", flush=True)
     except Exception as e:
-        print(f"[STARTUP] ERROR setting webhook: {e}", flush=True)
+        print(f"[STARTUP] ERROR setting webhook/Menu Button: {e}", flush=True)
 
 
 @app.on_event("shutdown")
