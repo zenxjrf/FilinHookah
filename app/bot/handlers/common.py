@@ -110,15 +110,6 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
         )
         await callback.answer()
 
-    @router.callback_query(F.data == "booking_link_unavailable")
-    async def booking_link_unavailable(callback: CallbackQuery) -> None:
-        await send_callback_text(
-            callback,
-            "Бронирование через mini app временно недоступно.\n"
-            "Для Telegram WebApp нужен HTTPS URL в WEBAPP_URL."
-        )
-        await callback.answer()
-
     @router.callback_query(F.data == "my_bookings")
     async def my_bookings(callback: CallbackQuery) -> None:
         if not callback.from_user:

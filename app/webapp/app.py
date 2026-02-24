@@ -137,6 +137,16 @@ async def webapp_index(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/webapp", response_class=HTMLResponse)
+async def webapp_main(request: Request) -> HTMLResponse:
+    """Основной маршрут для Telegram WebApp."""
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={},
+    )
+
+
 @app.get("/api/availability")
 async def availability(
     date_str: str = Query(alias="date"),

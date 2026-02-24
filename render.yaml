@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: filin-webapp
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.webapp.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./filin.db
+      - key: WEBAPP_URL
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: WORKERS_CHAT_ID
+        sync: false
+      - key: LOG_PATH
+        value: logs.txt
+      - key: DEFAULT_SCHEDULE
+        value: Ежедневно с 14:00 до 2:00
+      - key: DEFAULT_CONTACTS
+        value: "Phone: +7 (000) 000-00-00\\nAddress: Example street, 1"

@@ -2,24 +2,15 @@
 
 
 def main_menu_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
-    if webapp_url.lower().startswith("https://"):
-        open_app_button = InlineKeyboardButton(
-            text="Открыть мини-приложение",
-            web_app=WebAppInfo(url=webapp_url),
-        )
-        booking_button = InlineKeyboardButton(
-            text="Забронировать",
-            web_app=WebAppInfo(url=webapp_url),
-        )
-    else:
-        open_app_button = InlineKeyboardButton(
-            text="Открыть мини-приложение",
-            callback_data="booking_link_unavailable",
-        )
-        booking_button = InlineKeyboardButton(
-            text="Забронировать",
-            callback_data="booking_link_unavailable",
-        )
+    # Всегда создаём WebApp кнопки
+    open_app_button = InlineKeyboardButton(
+        text="Открыть мини-приложение",
+        web_app=WebAppInfo(url=webapp_url),
+    )
+    booking_button = InlineKeyboardButton(
+        text="Забронировать",
+        web_app=WebAppInfo(url=webapp_url),
+    )
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
