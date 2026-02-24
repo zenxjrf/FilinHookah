@@ -19,6 +19,9 @@ async def init_database():
     """Инициализировать БД при первом вызове."""
     print("[DB] Creating tables...", flush=True)
     try:
+        # Импортируем модели ПЕРЕД созданием таблиц
+        from app.db import models  # noqa: F401
+        
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("[DB] Tables created!", flush=True)

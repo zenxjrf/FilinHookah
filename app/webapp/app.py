@@ -874,7 +874,7 @@ async def free_table(
 # ==================== TELEGRAM WEBHOOK ====================
 
 # Импортируем функции для создания глобальных bot и dispatcher
-from app.bot.dispatcher import get_bot, get_dispatcher
+from app.bot.dispatcher import get_bot, get_dispatcher, init_database
 
 # Получаем глобальные bot и dispatcher (singleton)
 _webhook_bot = get_bot()
@@ -885,9 +885,8 @@ _webhook_dp = get_dispatcher()
 async def on_startup():
     """Установить webhook и инициализировать БД при старте приложения."""
     import os
-    from app.bot.dispatcher import init_database
     
-    # Инициализация БД
+    # Инициализация БД ПЕРВЫМ ДЕЛОМ!
     print("[STARTUP] Initializing database...", flush=True)
     await init_database()
     
