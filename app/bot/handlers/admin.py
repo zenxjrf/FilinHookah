@@ -552,32 +552,33 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
         _broadcast_state.pop(message.from_user.id, None)
         await message.answer("✅ Режим рассылки отменен.")
 
-    # Обработчик сообщений для рассылки
-    @router.message()
+    # Обработчик сообщений для рассылки (должен быть ПОСЛЕ команд!)
+    @router.message(lambda msg: True)
     async def handle_broadcast_message(message: Message) -> None:
         """Обработка сообщения для рассылки."""
         from aiogram import Bot
         from app.db import crud as db_crud
-        
+
+        # Проверяем что это админ
         if not is_admin(message):
             return
-        
+
         # Проверяем, в режиме ли рассылки админ
         if not _broadcast_state.get(message.from_user.id):
             return
-        
+
         async with session_factory() as session:
             subscribers = await db_crud.get_active_subscribers(session)
-        
+
         if not subscribers:
             await message.answer("❌ Нет подписчиков для рассылки.")
             _broadcast_state.pop(message.from_user.id, None)
             return
-        
+
         bot = Bot(token=settings.bot_token)
         success_count = 0
         fail_count = 0
-        
+
         # Отправляем сообщение всем подписчикам
         for sub in subscribers:
             try:
@@ -593,11 +594,11 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
                 logger.error(f"Failed to send to {sub.telegram_id}: {e}")
                 fail_count += 1
             await asyncio.sleep(0.05)  # Anti-flood
-        
+
         await bot.session.close()
-        
+
         _broadcast_state.pop(message.from_user.id, None)
-        
+
         await message.answer(
             f"✅ <b>Рассылка завершена!</b>\n\n"
             f"📤 Отправлено: <b>{success_count}</b>\n"
