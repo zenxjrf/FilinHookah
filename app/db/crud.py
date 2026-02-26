@@ -73,7 +73,7 @@ async def create_booking(
     # Оптимизированный запрос - проверяем только активные брони
     from_time = booking_at - timedelta(hours=4)
     to_time = booking_at + timedelta(hours=4)
-    stmt: Select[tuple[Booking]] = select(Booking).where(
+    stmt = select(Booking).where(
         and_(
             Booking.table_no == table_no,
             Booking.booking_at >= from_time,

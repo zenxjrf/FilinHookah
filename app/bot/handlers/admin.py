@@ -7,10 +7,12 @@ from datetime import datetime
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.config import Settings
 from app.db import crud
+from app.db.models import Client
 
 # Состояние для рассылки
 _broadcast_state: dict[int, bool] = {}
@@ -296,7 +298,6 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
         
         async with session_factory() as session:
             # Ищем клиента по номеру телефона
-            from app.db import crud
             client = await session.scalar(
                 select(Client).where(Client.phone_hash == phone)
             )

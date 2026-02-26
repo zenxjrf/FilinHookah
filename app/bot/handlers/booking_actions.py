@@ -169,18 +169,21 @@ def register_booking_actions(session_factory: async_sessionmaker, settings: Sett
         async with session_factory() as session:
             booking = await crud.get_booking_by_id(session, booking_id)
 
+            if not booking:
+                await callback.answer("Бронь не найдена", show_alert=True)
+                return
+
+            # Проверяем, что это тот же пользователь
+            if booking.client.telegram_id != callback.from_user.id:
+                await callback.answer("Это не ваша бронь!", show_alert=True)
+                return
+
+            # Подтверждаем бронь в БД
+            booking = await crud.confirm_booking_visit(session, booking_id)
+
         if not booking:
-            await callback.answer("Бронь не найдена", show_alert=True)
+            await callback.answer("Ошибка подтверждения", show_alert=True)
             return
-
-        # Проверяем, что это тот же пользователь
-        if booking.client.telegram_id != callback.from_user.id:
-            await callback.answer("Это не ваша бронь!", show_alert=True)
-            return
-
-        # Подтверждаем бронь
-        booking.status = "confirmed"
-        await session.commit()
 
         # Обновляем сообщение
         try:
