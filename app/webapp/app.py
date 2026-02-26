@@ -656,6 +656,16 @@ async def on_startup():
     except Exception as e:
         logger.error(f"Database error: {e}")
 
+    from app.admin_ids import set_dynamic_admin_ids
+    from app.db.base import session_factory
+    try:
+        async with session_factory() as session:
+            dynamic_ids = await crud.get_dynamic_admin_ids(session)
+            set_dynamic_admin_ids(set(dynamic_ids))
+        logger.info("Dynamic admins loaded: %s", dynamic_ids)
+    except Exception as e:
+        logger.warning("Could not load dynamic admins: %s", e)
+
     # Установка webhook
     webapp_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "https://filinhookah-1.onrender.com")
     base_url = webapp_url.replace("/webapp", "") if webapp_url.endswith("/webapp") else webapp_url

@@ -7,7 +7,7 @@ from sqlalchemy import and_, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Booking, BookingStatus, Client, Promotion, Review, Subscriber, VenueSettings
+from app.db.models import Booking, BookingStatus, Client, DynamicAdmin, Promotion, Review, Subscriber, VenueSettings
 
 
 def _is_overlap(
@@ -437,3 +437,33 @@ async def update_last_mailed(session: AsyncSession, telegram_id: int) -> None:
         .values(last_mailed_at=datetime.now(tz=UTC).replace(tzinfo=None))
     )
     await session.commit()
+
+
+# ==================== DYNAMIC ADMINS ====================
+
+async def add_dynamic_admin(session: AsyncSession, telegram_id: int) -> DynamicAdmin | None:
+    """Добавить админа по ID. Возвращает запись или None если уже есть."""
+    existing = await session.scalar(select(DynamicAdmin).where(DynamicAdmin.telegram_id == telegram_id))
+    if existing:
+        return None
+    admin = DynamicAdmin(telegram_id=telegram_id)
+    session.add(admin)
+    await session.commit()
+    await session.refresh(admin)
+    return admin
+
+
+async def remove_dynamic_admin(session: AsyncSession, telegram_id: int) -> bool:
+    """Удалить админа по ID. Возвращает True если удалён."""
+    admin = await session.scalar(select(DynamicAdmin).where(DynamicAdmin.telegram_id == telegram_id))
+    if not admin:
+        return False
+    await session.delete(admin)
+    await session.commit()
+    return True
+
+
+async def get_dynamic_admin_ids(session: AsyncSession) -> list[int]:
+    """Список telegram_id выданных админов."""
+    stmt = select(DynamicAdmin.telegram_id)
+    return list((await session.scalars(stmt)).all())

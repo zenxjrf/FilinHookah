@@ -10,6 +10,7 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.admin_ids import get_all_admin_ids
 from app.config import Settings
 from app.db import crud
 from app.db.models import Client
@@ -23,7 +24,7 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
     router = Router(name="admin")
 
     def is_admin(message: Message) -> bool:
-        return bool(message.from_user and message.from_user.id in settings.admin_ids)
+        return bool(message.from_user and message.from_user.id in get_all_admin_ids(settings))
 
     @router.message(Command("whoami"))
     async def whoami(message: Message) -> None:
@@ -41,15 +42,18 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
             if message.from_user:
                 await message.answer(
                     "Нет доступа.\n"
-                    f"Ваш telegram_id: `{message.from_user.id}`\n"
-                    "Добавьте его в ADMIN_IDS и перезапустите бота.",
-                    parse_mode="Markdown",
+                    f"Ваш telegram_id: <code>{message.from_user.id}</code>\n"
+                    "Попросите админа: /add_admin " + str(message.from_user.id),
+                    parse_mode="HTML",
                 )
             else:
                 await message.answer("Нет доступа.")
             return
         await message.answer(
             "Админ-команды:\n"
+            "/add_admin [id] — выдать админку по Telegram ID\n"
+            "/remove_admin [id] — забрать админку\n"
+            "/list_admins — список админов (из .env + выданные)\n"
             "/bookings [YYYY-MM-DD]\n"
             "/confirm_booking [id] - подтвердить (клиент придет)\n"
             "/close_booking [id] - закрыть (клиент посидел)\n"
@@ -67,6 +71,87 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
     @router.message(F.text.regexp(r"^/admin(@\w+)?$"))
     async def admin_panel_fallback(message: Message) -> None:
         await admin_panel(message)
+
+    @router.message(Command("add_admin"))
+    async def add_admin_cmd(message: Message) -> None:
+        """Выдать админку по Telegram ID. Только для текущих админов."""
+        if not is_admin(message):
+            await message.answer("Нет доступа.")
+            return
+        if not message.text:
+            await message.answer("Формат: /add_admin [telegram_id]\nПример: /add_admin 123456789")
+            return
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            await message.answer("Формат: /add_admin [telegram_id]")
+            return
+        try:
+            telegram_id = int(parts[1].strip())
+        except ValueError:
+            await message.answer("ID должен быть числом.")
+            return
+        from app.admin_ids import add_dynamic_admin_id
+        async with session_factory() as session:
+            added = await crud.add_dynamic_admin(session, telegram_id)
+        if added:
+            add_dynamic_admin_id(telegram_id)
+            await message.answer(f"✅ Админка выдана пользователю <code>{telegram_id}</code>.", parse_mode="HTML")
+        else:
+            await message.answer(f"ℹ️ Пользователь <code>{telegram_id}</code> уже является админом.", parse_mode="HTML")
+
+    @router.message(Command("remove_admin"))
+    async def remove_admin_cmd(message: Message) -> None:
+        """Забрать админку (только у выданных через /add_admin)."""
+        if not is_admin(message):
+            await message.answer("Нет доступа.")
+            return
+        if not message.text:
+            await message.answer("Формат: /remove_admin [telegram_id]")
+            return
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            await message.answer("Формат: /remove_admin [telegram_id]")
+            return
+        try:
+            telegram_id = int(parts[1].strip())
+        except ValueError:
+            await message.answer("ID должен быть числом.")
+            return
+        if telegram_id in settings.admin_ids:
+            await message.answer("❌ Нельзя забрать админку у ID из ADMIN_IDS (.env). Удалите его из переменных и перезапустите.")
+            return
+        from app.admin_ids import remove_dynamic_admin_id
+        async with session_factory() as session:
+            removed = await crud.remove_dynamic_admin(session, telegram_id)
+        if removed:
+            remove_dynamic_admin_id(telegram_id)
+            await message.answer(f"✅ Админка снята с пользователя <code>{telegram_id}</code>.", parse_mode="HTML")
+        else:
+            await message.answer(f"ℹ️ Пользователь <code>{telegram_id}</code> не был в списке выданных админов.", parse_mode="HTML")
+
+    @router.message(Command("list_admins"))
+    async def list_admins_cmd(message: Message) -> None:
+        """Показать список админов: из .env и выданные командой."""
+        if not is_admin(message):
+            await message.answer("Нет доступа.")
+            return
+        from app.admin_ids import get_all_admin_ids
+        env_ids = sorted(settings.admin_ids)
+        async with session_factory() as session:
+            dynamic_ids = await crud.get_dynamic_admin_ids(session)
+        dynamic_set = set(dynamic_ids)
+        lines = ["📋 <b>Админы из .env (ADMIN_IDS):</b>"]
+        if env_ids:
+            lines.append(", ".join(str(i) for i in env_ids))
+        else:
+            lines.append("—")
+        lines.append("\n📋 <b>Выданные через /add_admin:</b>")
+        if dynamic_ids:
+            lines.append(", ".join(str(i) for i in sorted(dynamic_ids)))
+        else:
+            lines.append("—")
+        lines.append(f"\n<b>Всего уникальных админов:</b> {len(get_all_admin_ids(settings))}")
+        await message.answer("\n".join(lines), parse_mode="HTML")
 
     @router.message(Command("bookings"))
     async def bookings(message: Message) -> None:
@@ -511,6 +596,9 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
             await message.answer("❌ Нет активных подписчиков для рассылки.")
             return
         
+        # Включаем режим рассылки: следующее сообщение от этого админа пойдёт подписчикам
+        _broadcast_state[message.from_user.id] = True
+
         await message.answer(
             f"📢 <b>Рассылка подписчикам</b>\n\n"
             f"👥 Активных подписчиков: <b>{count}</b>\n\n"
@@ -519,9 +607,6 @@ def create_admin_router(session_factory: async_sessionmaker, settings: Settings)
             f"❗ Отмена: /cancel",
             parse_mode="HTML"
         )
-        
-        # Устанавливаем состояние ожидания сообщения
-        # (В production лучше использовать FSM)
         await message.answer(
             "💡 <b>Совет:</b> Для отправки фото сначала отправьте фото с подписью,\n"
             f"и оно будет отправлено всем {count} подписчикам.",

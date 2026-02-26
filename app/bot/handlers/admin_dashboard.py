@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.admin_ids import get_all_admin_ids
 from app.config import Settings
 from app.db import crud
 from app.db.models import BookingStatus
@@ -16,7 +17,7 @@ def register_admin_dashboard(session_factory: async_sessionmaker, settings: Sett
     @router.message(Command("dashboard"))
     async def dashboard(message: Message) -> None:
         """Дашборд администратора."""
-        if not message.from_user or message.from_user.id not in settings.admin_ids:
+        if not message.from_user or message.from_user.id not in get_all_admin_ids(settings):
             await message.answer("Нет доступа.")
             return
         
@@ -56,7 +57,7 @@ def register_admin_dashboard(session_factory: async_sessionmaker, settings: Sett
     @router.callback_query(F.data == "dashboard_refresh")
     async def refresh_dashboard(callback: CallbackQuery) -> None:
         """Обновить дашборд."""
-        if not callback.from_user or callback.from_user.id not in settings.admin_ids:
+        if not callback.from_user or callback.from_user.id not in get_all_admin_ids(settings):
             await callback.answer("Нет доступа.", show_alert=True)
             return
         
@@ -100,7 +101,7 @@ def register_admin_dashboard(session_factory: async_sessionmaker, settings: Sett
     @router.message(Command("find_client"))
     async def find_client(message: Message) -> None:
         """Поиск клиента по телефону."""
-        if not message.from_user or message.from_user.id not in settings.admin_ids:
+        if not message.from_user or message.from_user.id not in get_all_admin_ids(settings):
             await message.answer("Нет доступа.")
             return
         
@@ -162,7 +163,7 @@ def register_admin_dashboard(session_factory: async_sessionmaker, settings: Sett
     @router.callback_query(F.data.startswith("client_notes_"))
     async def client_notes_callback(callback: CallbackQuery) -> None:
         """Добавить заметку о клиенте."""
-        if not callback.from_user or callback.from_user.id not in settings.admin_ids:
+        if not callback.from_user or callback.from_user.id not in get_all_admin_ids(settings):
             await callback.answer("Нет доступа.", show_alert=True)
             return
         

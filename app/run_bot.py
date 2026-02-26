@@ -75,6 +75,13 @@ async def run_polling() -> None:
     logger.info("Инициализация базы данных...")
     await init_db()
 
+    from app.admin_ids import set_dynamic_admin_ids
+    from app.db import crud as db_crud
+    async with session_factory() as session:
+        ids = await db_crud.get_dynamic_admin_ids(session)
+        set_dynamic_admin_ids(set(ids))
+    logger.info("Динамические админы загружены: %s", ids)
+
     logger.info("Создание бота...")
     bot = Bot(
         token=settings.bot_token,

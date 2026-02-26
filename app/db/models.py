@@ -109,3 +109,12 @@ class Subscriber(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     subscribed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_mailed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class DynamicAdmin(Base):
+    """Админы, выданные через команду /add_admin (без перезапуска)."""
+    __tablename__ = "dynamic_admins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

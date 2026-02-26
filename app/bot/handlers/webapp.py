@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -8,6 +8,7 @@ from aiogram import F, Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.admin_ids import get_all_admin_ids
 from app.config import Settings
 from app.db import crud
 
@@ -105,14 +106,14 @@ def register_webapp_handlers(session_factory: async_sessionmaker, settings: Sett
                 except Exception as e:
                     logging.error(f"Ошибка отправки в чат работников: {e}")
                     # Если не удалось отправить в чат работников, отправляем админам
-                    for admin_id in settings.admin_ids:
+                    for admin_id in get_all_admin_ids(settings):
                         await message.bot.send_message(
                             admin_id,
                             admin_text,
                             reply_markup=keyboard,
                         )
             else:
-                for admin_id in settings.admin_ids:
+                for admin_id in get_all_admin_ids(settings):
                     await message.bot.send_message(
                         admin_id,
                         admin_text,
@@ -148,7 +149,7 @@ def register_webapp_handlers(session_factory: async_sessionmaker, settings: Sett
                 except Exception as e:
                     logging.error(f"Ошибка отправки уведомления об отмене: {e}")
             else:
-                for admin_id in settings.admin_ids:
+                for admin_id in get_all_admin_ids(settings):
                     await message.bot.send_message(admin_id, admin_text)
             return
 
