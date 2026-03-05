@@ -1,4 +1,51 @@
-# 📝 Changelog v3.0
+# 📝 Changelog
+
+## [3.1.0] - 2026-03-05
+
+### ✨ Изменения
+
+#### Удалён функционал бронирования
+- **app/db/models.py**: Удалены модели `Booking`, `BookingStatus`
+- **app/db/crud.py**: Удалены функции для работы с бронями
+- **app/webapp/app.py**: Удалены endpoints `/api/bookings`, `/api/availability`, `/api/tables_status`, `/api/admin/bookings/*`
+- **app/webapp/templates/index.html**: Удалена страница бронирования
+- **app/webapp/static/app.js**: Удалены функции бронирования
+- **app/bot/handlers/common.py**: Удалена кнопка "Мои брони"
+- **app/bot/handlers/admin.py**: Удалены команды `/bookings`, `/confirm_booking`, `/close_booking`, `/cancel_booking`, `/staff_booking`, `/block_table`
+- **app/bot/handlers/booking_actions.py**: Файл удалён
+- **app/bot/scheduler.py**: Файл удалён (напоминания о бронях)
+
+#### Новый информационный интерфейс
+- **app/webapp/templates/index.html**: 
+  - Красивая главная страница с описанием заведения
+  - Сетка преимуществ (7 карточек)
+  - Карточка условий посещения
+  - Кнопка "Забронировать стол" → звонок по tel:+79504333434
+- **app/webapp/static/styles.css**:
+  - Стили для `.info-card`, `.features-grid`, `.feature-card`
+  - Стили для `.conditions-card`, `.conditions-list`
+  - Удалены стили для форм бронирования
+- **app/bot/keyboards/main.py**: 
+  - Обновлена главная клавиатура
+  - Кнопка "Забронировать" → tel:+79504333434
+
+#### Обновлённая админ-панель
+- **app/bot/handlers/admin_dashboard.py**: Упрощённый дашборд без карты столов
+- **app/bot/handlers/admin.py**: Обновлён список админ-команд
+
+#### Документация
+- **README.md**: Обновлён для v3.1 (информационный режим)
+
+### 📊 Метрики
+
+| Метрика | До (v3.0) | После (v3.1) |
+|---------|-----------|--------------|
+| Файлов кода | 25+ | 20 |
+| API endpoints | 15+ | 8 |
+| Строк кода | ~2500 | ~1500 |
+| Сложность | Высокая | Низкая |
+
+---
 
 ## [3.0.0] - 2026-02-25
 

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,13 +10,6 @@ from app.db.base import Base
 
 # Таблицы создаются в app/webapp/app.py при старте приложения
 # Не создаём автоматически при импорте (избегаем asyncio.run() в event loop)
-
-
-class BookingStatus(StrEnum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    COMPLETED = "completed"
-    CANCELED = "canceled"
 
 
 class Client(Base):
@@ -33,35 +25,7 @@ class Client(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # Заметки о клиенте
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
-    bookings: Mapped[list[Booking]] = relationship(back_populates="client", lazy="selectin")
     reviews: Mapped[list[Review]] = relationship(back_populates="client", lazy="selectin")
-
-
-class Booking(Base):
-    __tablename__ = "bookings"
-    __table_args__ = (
-        UniqueConstraint(
-            "table_no",
-            "booking_at",
-            name="uq_booking_table_start",
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
-    booking_at: Mapped[datetime] = mapped_column(DateTime, index=True)
-    duration_minutes: Mapped[int] = mapped_column(Integer, default=120)
-    guests: Mapped[int] = mapped_column(Integer, default=2)
-    table_no: Mapped[int] = mapped_column(Integer, index=True)
-    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default=BookingStatus.PENDING.value, index=True)
-    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # За 24 часа
-    reminder_1h_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # За 1 час
-    is_staff_booking: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # Бронь от сотрудника
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
-
-    client: Mapped[Client] = relationship(back_populates="bookings", lazy="joined")
-    review: Mapped[Review | None] = relationship(back_populates="booking", lazy="joined")
 
 
 class Promotion(Base):
@@ -80,13 +44,11 @@ class Review(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
-    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id"), nullable=True, index=True)
     rating: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     client: Mapped[Client] = relationship(back_populates="reviews", lazy="joined")
-    booking: Mapped[Booking | None] = relationship(back_populates="review", lazy="joined")
 
 
 class VenueSettings(Base):

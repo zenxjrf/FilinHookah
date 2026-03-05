@@ -307,6 +307,106 @@ body {
     color: var(--text-secondary);
 }
 
+/* Информационная карточка */
+.info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.info-intro {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.info-intro:last-child {
+    margin-bottom: 0;
+}
+
+/* Сетка преимуществ */
+.features-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.feature-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(25, 15, 35, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    transition: all 0.2s ease;
+}
+
+.feature-card:hover {
+    background: rgba(35, 20, 50, 0.6);
+    border-color: var(--border-hover);
+    transform: translateX(4px);
+}
+
+.feature-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.feature-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+.feature-text b {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* Карточка условий */
+.conditions-card {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(255, 149, 0, 0.1));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.conditions-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 14px;
+}
+
+.conditions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.conditions-list li {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+}
+
+.conditions-list li:last-child {
+    border-bottom: none;
+}
+
+.conditions-list li b {
+    color: var(--amber);
+    font-weight: 700;
+}
+
 .stats-card {
     display: flex;
     align-items: center;
@@ -343,36 +443,7 @@ body {
     background: var(--border);
 }
 
-.schedule-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 16px;
-}
-
-.schedule-icon {
-    font-size: 40px;
-}
-
-.schedule-info {
-    flex: 1;
-}
-
-.schedule-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.schedule-text {
-    font-size: 13px;
-    color: var(--text-secondary);
-}
+/* Карточка расписания - удалено */
 
 .quick-actions {
     display: flex;
@@ -442,62 +513,7 @@ body {
     margin: 0 auto;
 }
 
-/* Формы */
-.form-group {
-    margin-bottom: 16px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-input,
-select,
-textarea {
-    width: 100%;
-    border: 1px solid var(--border);
-    background: rgba(15, 8, 25, 0.6);
-    color: var(--text-primary);
-    border-radius: 12px;
-    padding: 14px 16px;
-    font-size: 14px;
-    outline: none;
-    transition: all 0.2s ease;
-    font-family: inherit;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    border-color: var(--amber);
-    box-shadow: 0 0 0 3px var(--amber-glow);
-    background: rgba(20, 10, 30, 0.7);
-}
-
-.submit-btn {
-    width: 100%;
-    border: none;
-    color: #0a0510;
-    font-weight: 700;
-    font-size: 15px;
-    background: linear-gradient(135deg, var(--amber) 0%, var(--gold) 50%, var(--amber) 100%);
-    cursor: pointer;
-    border-radius: 12px;
-    padding: 16px 24px;
-    margin-top: 8px;
-    transition: all 0.2s ease;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.submit-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px var(--amber-glow);
-}
+/* Формы - удалено вместе с функционалом бронирования */
 
 /* Нижняя навигация */
 .bottom-nav {
@@ -587,67 +603,7 @@ textarea:focus {
     line-height: 1.5;
 }
 
-/* Статусы броней */
-.status-pending {
-    border-left: 4px solid var(--warning);
-}
-
-.status-confirmed {
-    border-left: 4px solid var(--success);
-    background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), transparent);
-}
-
-.status-completed {
-    border-left: 4px solid var(--purple);
-    background: linear-gradient(90deg, rgba(124, 58, 237, 0.1), transparent);
-}
-
-.status-canceled {
-    border-left: 4px solid var(--danger);
-    background: linear-gradient(90deg, rgba(239, 68, 68, 0.1), transparent);
-}
-
-.booking-header {
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-    font-size: 14px;
-}
-
-.booking-details {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.booking-details > div {
-    margin: 4px 0;
-}
-
-.booking-status {
-    margin-top: 8px !important;
-    color: var(--text-secondary) !important;
-    font-size: 13px !important;
-    font-weight: 600;
-}
-
-.cancel-btn {
-    width: 100%;
-    margin-top: 10px;
-    padding: 12px;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s ease;
-}
-
-.cancel-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-}
+/* Статусы броней - удалено вместе с функционалом бронирования */
 
 /* Статус сообщения */
 .status-message {

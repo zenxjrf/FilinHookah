@@ -48,7 +48,7 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
         await message.answer(
             "🦉 <b>Филин Lounge Bar</b>\n\n"
             "💨 Дым. Вкус. Атмосфера\n\n"
-            "Открой мини-приложение — забронируй стол, узнай об акциях и получи бонусы!\n\n"
+            "Открой мини-приложение — узнай всё о нашем заведении и забронируй стол!\n\n"
             "🎁 5-й кальян со скидкой 50%\n"
             "🏆 10-й кальян бесплатно\n\n"
             "✅ <i>Вы подписаны на уведомления об акциях и событиях</i>",
@@ -120,30 +120,6 @@ def register_common_handlers(session_factory: async_sessionmaker, settings: Sett
             "Классический кальян до 18:00 - 1000 рублей\n"
             "Напитки и пиво с бара - 200 рублей",
         )
-        await callback.answer()
-
-    @router.callback_query(F.data == "my_bookings")
-    async def my_bookings(callback: CallbackQuery) -> None:
-        if not callback.from_user:
-            await callback.answer()
-            return
-        async with session_factory() as session:
-            client = await crud.get_or_create_client(
-                session=session,
-                telegram_id=callback.from_user.id,
-                username=callback.from_user.username,
-                full_name=callback.from_user.full_name,
-            )
-            bookings = await crud.list_user_bookings(session, client.id)
-        if not bookings:
-            text = "У вас нет активных броней."
-        else:
-            rows = [
-                f"#{b.id} | Стол {b.table_no} | Бронь на {b.booking_at:%d.%m %H:%M} | Создана {b.created_at:%d.%m %H:%M} | {b.status}"
-                for b in bookings
-            ]
-            text = "<b>Ваши брони:</b>\n" + "\n".join(rows)
-        await send_callback_text(callback, text)
         await callback.answer()
 
     @router.callback_query(F.data == "loyalty")
